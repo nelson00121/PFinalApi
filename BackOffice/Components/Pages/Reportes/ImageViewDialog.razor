@@ -1,0 +1,61 @@
+@using MudBlazor
+@inject NavigationManager NavigationManager
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 800px;">
+            <div style="text-align: center;">
+                @if (!string.IsNullOrEmpty(ImageUrl))
+                {
+                    <MudImage Src="@ImageUrl" 
+                              Alt="@ImageName" 
+                              Style="max-width: 100%; max-height: 600px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Warning">
+                        No se pudo cargar la imagen.
+                    </MudAlert>
+                }
+            </div>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close" Variant="Variant.Filled" Color="Color.Primary">
+            Cerrar
+        </MudButton>
+        @if (!string.IsNullOrEmpty(ImageUrl))
+        {
+            <MudButton OnClick="OpenInNewTab" 
+                       Variant="Variant.Outlined" 
+                       Color="Color.Primary"
+                       StartIcon="Icons.Material.Filled.OpenInNew">
+                Abrir en nueva pestaña
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter] 
+    public string ImageUrl { get; set; } = string.Empty;
+
+    [Parameter] 
+    public string ImageName { get; set; } = string.Empty;
+
+    void Close()
+    {
+        MudDialog?.Close();
+    }
+
+    void OpenInNewTab()
+    {
+        if (!string.IsNullOrEmpty(ImageUrl))
+        {
+            NavigationManager.NavigateTo(ImageUrl, true);
+        }
+    }
+}

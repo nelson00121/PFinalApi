@@ -1,0 +1,216 @@
+@using Database.Models
+@using BackOffice.Services
+@using MudBlazor
+@using Bucket
+@inject IReporteService ReporteService
+@inject ISnackbar Snackbar
+@inject IMinioService MinioService
+@inject IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 700px;">
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else if (reporte != null)
+            {
+                <MudCard>
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Detalles del Reporte #@reporte.Id</MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary">
+                                @reporte.FechaRegistro.ToString("dd/MM/yyyy HH:mm")
+                            </MudChip>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    
+                    <MudCardContent>
+                        <MudGrid>
+                            <MudItem xs="12" sm="6">
+                                <MudPaper Class="pa-4" Elevation="1">
+                                    <MudText Typo="Typo.subtitle2" GutterBottom="true">
+                                        <MudIcon Icon="Icons.Material.Filled.Pets" Class="me-2" />
+                                        Información del Animal
+                                    </MudText>
+                                    <MudDivider Class="mb-3" />
+                                    <MudText Typo="Typo.body2" Class="mb-2">
+                                        <strong>Código RFID:</strong> @reporte.Animal?.CodigoRfid
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Class="mb-2">
+                                        <strong>Raza:</strong> @reporte.Animal?.Raza?.Nombre
+                                    </MudText>
+                                    <MudText Typo="Typo.body2">
+                                        <strong>Peso Actual:</strong> @reporte.Animal?.PesoActualLibras.ToString("F2") lbs
+                                    </MudText>
+                                </MudPaper>
+                            </MudItem>
+
+                            <MudItem xs="12" sm="6">
+                                <MudPaper Class="pa-4" Elevation="1">
+                                    <MudText Typo="Typo.subtitle2" GutterBottom="true">
+                                        <MudIcon Icon="Icons.Material.Filled.Person" Class="me-2" />
+                                        Empleado Responsable
+                                    </MudText>
+                                    <MudDivider Class="mb-3" />
+                                    <MudText Typo="Typo.body2" Class="mb-2">
+                                        <strong>Nombre:</strong> @reporte.Empleado?.PrimerNombre @reporte.Empleado?.SegundoNombre
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Class="mb-2">
+                                        <strong>Apellidos:</strong> @reporte.Empleado?.PrimerApellido @reporte.Empleado?.SegundoApellido
+                                    </MudText>
+                                    <MudText Typo="Typo.body2">
+                                        <strong>Estado:</strong> @(reporte.Empleado?.Activo == true ? "Activo" : "Inactivo")
+                                    </MudText>
+                                </MudPaper>
+                            </MudItem>
+
+                            <MudItem xs="12">
+                                <MudPaper Class="pa-4" Elevation="1">
+                                    <MudText Typo="Typo.subtitle2" GutterBottom="true">
+                                        <MudIcon Icon="Icons.Material.Filled.Description" Class="me-2" />
+                                        Descripción del Reporte
+                                    </MudText>
+                                    <MudDivider Class="mb-3" />
+                                    <MudText Typo="Typo.body2" Style="white-space: pre-wrap;">
+                                        @reporte.Descripcion
+                                    </MudText>
+                                </MudPaper>
+                            </MudItem>
+
+                            @if (reporte.Archivos?.Any() == true)
+                            {
+                                <MudItem xs="12">
+                                    <MudPaper Class="pa-4" Elevation="1">
+                                        <MudText Typo="Typo.subtitle2" GutterBottom="true">
+                                            <MudIcon Icon="Icons.Material.Filled.Image" Class="me-2" />
+                                            Imágenes Adjuntas (@reporte.Archivos.Count)
+                                        </MudText>
+                                        <MudDivider Class="mb-3" />
+                                        <MudList Dense="true" T="string">
+                                            @foreach (var archivo in reporte.Archivos)
+                                            {
+                                                <MudListItem T="string">
+                                                    <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                                                        <div style="flex-grow: 1;">
+                                                            <MudText Typo="Typo.body2">Imagen #@archivo.Id</MudText>
+                                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                                @GetFileName(archivo.Enlance)
+                                                            </MudText>
+                                                        </div>
+                                                        <div style="display: flex; gap: 8px;">
+                                                            <MudButton Size="Size.Small" 
+                                                                     Variant="Variant.Outlined"
+                                                                     Color="Color.Primary"
+                                                                     StartIcon="Icons.Material.Filled.Visibility"
+                                                                     OnClick="() => ViewImage(archivo.Enlance)">
+                                                                Ver
+                                                            </MudButton>
+                                                            <MudIconButton Icon="Icons.Material.Filled.OpenInNew"
+                                                                          Size="Size.Small"
+                                                                          Color="Color.Primary"
+                                                                          Href="@GetFullImageUrl(archivo.Enlance)"
+                                                                          Target="_blank" />
+                                                        </div>
+                                                    </div>
+                                                </MudListItem>
+                                            }
+                                        </MudList>
+                                    </MudPaper>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    </MudCardContent>
+                </MudCard>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Error">
+                    No se pudo cargar la información del reporte.
+                </MudAlert>
+            }
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close" Variant="Variant.Filled" Color="Color.Primary">
+            Cerrar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter] 
+    public int ReporteId { get; set; }
+
+    private Reporte? reporte;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReporte();
+    }
+
+    private async Task LoadReporte()
+    {
+        isLoading = true;
+        try
+        {
+            reporte = await ReporteService.GetReporteByIdAsync(ReporteId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar el reporte: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+
+    void Close()
+    {
+        MudDialog?.Close();
+    }
+
+    private string GetFullImageUrl(string enlace)
+    {
+        return MinioService.GetBucketAddress() + enlace;
+    }
+
+    private string GetFileName(string enlace)
+    {
+        if (string.IsNullOrEmpty(enlace)) return "";
+        var parts = enlace.Split('/');
+        return parts.Length > 0 ? parts[^1] : enlace;
+    }
+
+    private async Task ViewImage(string enlace)
+    {
+        try
+        {
+            var fileName = GetFileName(enlace);
+            var imageUrl = await MinioService.GetImageUrlAsync(fileName);
+            
+            var parameters = new DialogParameters
+            {
+                ["ImageUrl"] = imageUrl,
+                ["ImageName"] = fileName
+            };
+
+            await DialogService.ShowAsync<ImageViewDialog>("Ver Imagen", parameters);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar la imagen: {ex.Message}", Severity.Error);
+        }
+    }
+}

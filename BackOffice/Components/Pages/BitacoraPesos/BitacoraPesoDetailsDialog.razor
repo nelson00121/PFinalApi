@@ -1,0 +1,133 @@
+@using Database.Models
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="Icons.Material.Filled.Scale" Class="mr-3" />
+            Detalles del Registro de Peso
+        </MudText>
+    </TitleContent>
+    
+    <DialogContent>
+        <MudContainer Style="max-width: 600px; padding: 0;">
+            @if (BitacoraPeso != null)
+            {
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudCard>
+                            <MudCardContent>
+                                <MudText Typo="Typo.h6" GutterBottom="true">Información del Animal</MudText>
+                                <MudDivider Class="mb-3" />
+                                
+                                <MudGrid>
+                                    <MudItem xs="6">
+                                        <MudField Label="Código RFID" Variant="Variant.Text">
+                                            <MudChip T="string" Color="Color.Info" Size="Size.Small">
+                                                @BitacoraPeso.Animal?.CodigoRfid
+                                            </MudChip>
+                                        </MudField>
+                                    </MudItem>
+                                    <MudItem xs="6">
+                                        <MudField Label="Raza" Variant="Variant.Text">
+                                            @BitacoraPeso.Animal?.Raza?.Nombre
+                                        </MudField>
+                                    </MudItem>
+                                    <MudItem xs="6">
+                                        <MudField Label="Estado Actual" Variant="Variant.Text">
+                                            <MudChip T="string" Color="GetEstadoColor(BitacoraPeso.Animal?.EstadoAnimal?.Nombre)" Size="Size.Small">
+                                                @BitacoraPeso.Animal?.EstadoAnimal?.Nombre
+                                            </MudChip>
+                                        </MudField>
+                                    </MudItem>
+                                    <MudItem xs="6">
+                                        <MudField Label="Peso Actual del Animal" Variant="Variant.Text">
+                                            @BitacoraPeso.Animal?.PesoActualLibras.ToString("F2") lbs
+                                        </MudField>
+                                    </MudItem>
+                                </MudGrid>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                    
+                    <MudItem xs="12">
+                        <MudCard>
+                            <MudCardContent>
+                                <MudText Typo="Typo.h6" GutterBottom="true">Medidas Registradas</MudText>
+                                <MudDivider Class="mb-3" />
+                                
+                                <MudGrid>
+                                    <MudItem xs="6" md="3">
+                                        <MudField Label="Peso" Variant="Variant.Text">
+                                            <MudText Typo="Typo.body1" Color="Color.Primary">
+                                                <strong>@BitacoraPeso.Peso.ToString("F2") lbs</strong>
+                                            </MudText>
+                                        </MudField>
+                                    </MudItem>
+                                    <MudItem xs="6" md="3">
+                                        <MudField Label="Alto" Variant="Variant.Text">
+                                            @BitacoraPeso.Alto.ToString("F2") cm
+                                        </MudField>
+                                    </MudItem>
+                                    <MudItem xs="6" md="3">
+                                        <MudField Label="Largo" Variant="Variant.Text">
+                                            @BitacoraPeso.Largo.ToString("F2") cm
+                                        </MudField>
+                                    </MudItem>
+                                    <MudItem xs="6" md="3">
+                                        <MudField Label="Diámetro" Variant="Variant.Text">
+                                            @BitacoraPeso.Diametro.ToString("F2") cm
+                                        </MudField>
+                                    </MudItem>
+                                </MudGrid>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                    
+                    <MudItem xs="12">
+                        <MudCard>
+                            <MudCardContent>
+                                <MudText Typo="Typo.h6" GutterBottom="true">Información del Registro</MudText>
+                                <MudDivider Class="mb-3" />
+                                
+                                <MudGrid>
+                                    <MudItem xs="6">
+                                        <MudField Label="ID del Registro" Variant="Variant.Text">
+                                            @BitacoraPeso.Id
+                                        </MudField>
+                                    </MudItem>
+                                    <MudItem xs="6">
+                                        <MudField Label="Fecha y Hora" Variant="Variant.Text">
+                                            @BitacoraPeso.FechaRegistro.ToString("dd/MM/yyyy HH:mm:ss")
+                                        </MudField>
+                                    </MudItem>
+                                </MudGrid>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                </MudGrid>
+            }
+        </MudContainer>
+    </DialogContent>
+    
+    <DialogActions>
+        <MudButton Color="Color.Primary" OnClick="Close">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public BitacoraPeso? BitacoraPeso { get; set; }
+
+    private void Close() => MudDialog.Close();
+
+    private Color GetEstadoColor(string? estado)
+    {
+        return estado?.ToLower() switch
+        {
+            "activo" => Color.Success,
+            "enfermo" => Color.Warning,
+            "muerto" => Color.Error,
+            _ => Color.Default
+        };
+    }
+}

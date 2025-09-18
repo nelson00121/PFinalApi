@@ -1,0 +1,211 @@
+@page "/historial-alimenticio"
+@using Database.Models
+@using BackOffice.Services
+@inject IHistorialAlimenticioService HistorialAlimenticioService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Gestión de Historial Alimenticio</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Gestión de Historial Alimenticio</MudText>
+    
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <MudText Typo="Typo.h6">Lista de Historial Alimenticio</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="Icons.Material.Filled.Add"
+                              OnClick="OpenCreateDialog">
+                        Nuevo Registro
+                    </MudButton>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        
+        <MudCardContent>
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else
+            {
+                <MudTable Items="historiales" 
+                         Hover="true" 
+                         Dense="true"
+                         Striped="true"
+                         Loading="isLoading">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Animal</MudTh>
+                        <MudTh>Alimento</MudTh>
+                        <MudTh>Tipo</MudTh>
+                        <MudTh>Cantidad</MudTh>
+                        <MudTh>Unidad</MudTh>
+                        <MudTh>Empleado</MudTh>
+                        <MudTh>Fecha Registro</MudTh>
+                        <MudTh Style="text-align: center;">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.Id</MudTd>
+                        <MudTd DataLabel="Animal">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary">@context.Animal?.Id</MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Alimento">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info">@context.Alimento?.Nombre</MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Tipo">@context.Alimento?.TipoAlimento?.NombreTipo</MudTd>
+                        <MudTd DataLabel="Cantidad">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">
+                                @context.Cantidad.ToString("F2")
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Unidad">@context.Alimento?.UnidadesDeMedidaAlimentos?.Nombre</MudTd>
+                        <MudTd DataLabel="Empleado">@context.Empleado?.Id @context.Empleado?.Id</MudTd>
+                        <MudTd DataLabel="Fecha">@context.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                <MudTooltip Text="Editar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Edit" 
+                                                 Color="Color.Warning"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => OpenEditDialog(context)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Eliminar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Delete" 
+                                                 Color="Color.Error"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => DeleteHistorial(context)" />
+                                </MudTooltip>
+                            </MudButtonGroup>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                @if (!historiales.Any() && !isLoading)
+                {
+                    <div style="text-align: center; padding: 2rem;">
+                        <MudIcon Icon="Icons.Material.Filled.Fastfood" Size="Size.Large" Color="Color.Secondary" />
+                        <MudText Typo="Typo.h6" Color="Color.Secondary">No hay registros de historial alimenticio</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Registra el primer consumo de alimento</MudText>
+                    </div>
+                }
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<HistorialAlimenticio> historiales = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHistoriales();
+    }
+
+    private async Task LoadHistoriales()
+    {
+        isLoading = true;
+        try
+        {
+            historiales = await HistorialAlimenticioService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar el historial alimenticio: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters<HistorialAlimenticioDialog>
+        {
+            { x => x.IsEditMode, false }
+        };
+
+        var options = new DialogOptions()
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<HistorialAlimenticioDialog>("Nuevo Registro de Historial Alimenticio", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadHistoriales();
+        }
+    }
+
+    private async Task OpenEditDialog(HistorialAlimenticio historial)
+    {
+        var parameters = new DialogParameters<HistorialAlimenticioDialog>
+        {
+            { x => x.IsEditMode, true },
+            { x => x.HistorialAlimenticio, historial }
+        };
+
+        var options = new DialogOptions()
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<HistorialAlimenticioDialog>($"Editar Historial #{historial.Id}", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadHistoriales();
+        }
+    }
+
+    private async Task DeleteHistorial(HistorialAlimenticio historial)
+    {
+        var parameters = new DialogParameters<MudMessageBox>
+        {
+            { "Title", "Confirmar eliminación" },
+            { "Message", $"¿Está seguro que desea eliminar el registro de consumo de {historial.Alimento?.Nombre} por {historial.Animal?.CodigoRfid}?\n\nEsta acción devolverá {historial.Cantidad:F2} {historial.Alimento?.UnidadesDeMedidaAlimentos?.Nombre} al stock." },
+            { "YesText", "Eliminar" },
+            { "NoText", "Cancelar" }
+        };
+
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Confirmar eliminación", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var success = await HistorialAlimenticioService.DeleteAsync(historial.Id);
+                if (success)
+                {
+                    Snackbar.Add("Registro eliminado exitosamente. Stock restaurado.", Severity.Success);
+                    await LoadHistoriales();
+                }
+                else
+                {
+                    Snackbar.Add("Error al eliminar el registro", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al eliminar: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

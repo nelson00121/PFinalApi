@@ -1,0 +1,159 @@
+@using Database.DTOS
+@using Database.Models
+@using BackOffice.Services
+@inject IBitacoraPesoService BitacoraPesoService
+@inject IAnimalService AnimalService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 600px; padding: 0;">
+            <EditForm Model="dto" OnValidSubmit="HandleValidSubmit">
+                <DataAnnotationsValidator />
+                
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudSelect T="int" 
+                                  @bind-Value="dto.AnimalId" 
+                                  Label="Animal" 
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  Placeholder="Seleccione un animal"
+                                  For="@(() => dto.AnimalId)">
+                            @foreach (var animal in animales)
+                            {
+                                <MudSelectItem Value="@animal.Id">
+                                    @animal.CodigoRfid (@animal.Raza?.Nombre)
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <MudNumericField T="decimal" 
+                                        @bind-Value="dto.Peso"
+                                        Label="Peso (libras)"
+                                        Variant="Variant.Outlined"
+                                        Min="0.1m"
+                                        Max="9999.99m"
+                                        Step="0.01m"
+                                        Format="F2"
+                                        For="@(() => dto.Peso)"
+                                        Required="true" />
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <MudNumericField T="decimal" 
+                                        @bind-Value="dto.Alto"
+                                        Label="Alto (cm)"
+                                        Variant="Variant.Outlined"
+                                        Min="0.1m"
+                                        Max="999.99m"
+                                        Step="0.01m"
+                                        Format="F2"
+                                        For="@(() => dto.Alto)"
+                                        Required="true" />
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <MudNumericField T="decimal" 
+                                        @bind-Value="dto.Largo"
+                                        Label="Largo (cm)"
+                                        Variant="Variant.Outlined"
+                                        Min="0.1m"
+                                        Max="999.99m"
+                                        Step="0.01m"
+                                        Format="F2"
+                                        For="@(() => dto.Largo)"
+                                        Required="true" />
+                    </MudItem>
+                    
+                    <MudItem xs="12" md="6">
+                        <MudNumericField T="decimal" 
+                                        @bind-Value="dto.Diametro"
+                                        Label="Diámetro (cm)"
+                                        Variant="Variant.Outlined"
+                                        Min="0.1m"
+                                        Max="999.99m"
+                                        Step="0.01m"
+                                        Format="F2"
+                                        For="@(() => dto.Diametro)"
+                                        Required="true" />
+                    </MudItem>
+                </MudGrid>
+                
+                <MudAlert Severity="Severity.Info" Class="mt-4">
+                    <strong>Nota:</strong> Al registrar este peso, se actualizará automáticamente el peso actual del animal seleccionado.
+                </MudAlert>
+                
+            </EditForm>
+        </MudContainer>
+    </DialogContent>
+    
+    <DialogActions>
+        <MudButton OnClick="Cancel" StartIcon="Icons.Material.Filled.Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" 
+                  Variant="Variant.Filled"
+                  OnClick="HandleValidSubmit"
+                  StartIcon="Icons.Material.Filled.Save"
+                  Disabled="isLoading">
+            @if (isLoading)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">Guardando...</MudText>
+            }
+            else
+            {
+                <MudText>Guardar</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    
+    private BitacoraPesoCreateDto dto = new();
+    private List<Animale> animales = new();
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAnimales();
+    }
+
+    private async Task LoadAnimales()
+    {
+        try
+        {
+            var result = await AnimalService.GetAnimalesPaginadosAsync(1, 1000);
+            animales = result.animales;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar animales: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (isLoading) return;
+        
+        isLoading = true;
+        try
+        {
+            await BitacoraPesoService.CreateAsync(dto);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al guardar: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

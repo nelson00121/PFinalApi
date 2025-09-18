@@ -1,0 +1,263 @@
+﻿@page "/"
+@using BackOffice.Services
+@attribute [Authorize(Policy="UserOnly")]
+@using Database.Models
+@using Microsoft.AspNetCore.Authorization
+@rendermode InteractiveAuto
+@inject IAnimalService AnimalService
+
+<PageTitle>Bienvenido al BackOffice</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-6">
+    <MudGrid Spacing="3">
+        
+        <!-- Hero Section -->
+        <MudItem xs="12">
+            <MudPaper Class="pa-8" Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;" Elevation="5">
+                <MudGrid>
+                    <MudItem xs="12" sm="8">
+                        <MudText Typo="Typo.h2" Class="mb-3" Style="font-weight: 300;">
+                            ¡Bienvenido al BackOffice!
+                        </MudText>
+                        <MudText Typo="Typo.h5" Class="mb-4" Style="opacity: 0.9; font-weight: 300;">
+                            Sistema de Gestión Integral de Animales
+                        </MudText>
+                        <MudText Typo="Typo.body1" Style="opacity: 0.8; max-width: 600px;">
+                            Administra eficientemente tu inventario ganadero con herramientas modernas para el seguimiento, 
+                            control y gestión de tus animales.
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4" Class="text-center">
+                        <MudIcon Icon="Icons.Material.Filled.Pets" Size="Size.Large" Style="font-size: 120px; opacity: 0.7;" />
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        </MudItem>
+
+        <!-- Stats Cards -->
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="3" Class="pa-4" Style="height: 140px;">
+                <MudCardContent Class="pa-0">
+                    <div class="d-flex align-center">
+                        <MudAvatar Color="Color.Primary" Size="Size.Large" Class="mr-4">
+                            <MudIcon Icon="Icons.Material.Filled.Pets" />
+                        </MudAvatar>
+                        <div>
+                            <MudText Typo="Typo.h4" Color="Color.Primary" Style="font-weight: 600;">
+                                @totalItems
+                            </MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                                Animales Registrados
+                            </MudText>
+                        </div>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="3" Class="pa-4" Style="height: 140px;">
+                <MudCardContent Class="pa-0">
+                    <div class="d-flex align-center">
+                        <MudAvatar Color="Color.Success" Size="Size.Large" Class="mr-4">
+                            <MudIcon Icon="Icons.Material.Filled.CheckCircle" />
+                        </MudAvatar>
+                        <div>
+                            <MudText Typo="Typo.h4" Color="Color.Success" Style="font-weight: 600;">
+                                @animalesActivos
+                            </MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                                Activos
+                            </MudText>
+                        </div>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="3" Class="pa-4" Style="height: 140px;">
+                <MudCardContent Class="pa-0">
+                    <div class="d-flex align-center">
+                        <MudAvatar Color="Color.Warning" Size="Size.Large" Class="mr-4">
+                            <MudIcon Icon="Icons.Material.Filled.MonitorWeight" />
+                        </MudAvatar>
+                        <div>
+                            <MudText Typo="Typo.h4" Color="Color.Warning" Style="font-weight: 600;">
+                                @pesoPromedio.ToString("F1")
+                            </MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                                Peso Promedio (lbs)
+                            </MudText>
+                        </div>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="3" Class="pa-4" Style="height: 140px;">
+                <MudCardContent Class="pa-0">
+                    <div class="d-flex align-center">
+                        <MudAvatar Color="Color.Info" Size="Size.Large" Class="mr-4">
+                            <MudIcon Icon="Icons.Material.Filled.Today" />
+                        </MudAvatar>
+                        <div>
+                            <MudText Typo="Typo.h4" Color="Color.Info" Style="font-weight: 600;">
+                                @animalesRecientes
+                            </MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                                Registrados Hoy
+                            </MudText>
+                        </div>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Quick Actions -->
+        <MudItem xs="12" md="8">
+            <MudCard Elevation="3">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="Icons.Material.Filled.Dashboard" Class="mr-3" />
+                            <MudText Typo="Typo.h6">Acciones Rápidas</MudText>
+                        </div>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudGrid Spacing="3">
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudButton Variant="Variant.Outlined" 
+                                     Color="Color.Primary" 
+                                     FullWidth="true"
+                                     StartIcon="Icons.Material.Filled.Add"
+                                     Class="pa-4"
+                                     Size="Size.Large"
+                                     Href="/animals">
+                                Nuevo Animal
+                            </MudButton>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudButton Variant="Variant.Outlined" 
+                                     Color="Color.Secondary" 
+                                     FullWidth="true"
+                                     StartIcon="Icons.Material.Filled.Search"
+                                     Class="pa-4"
+                                     Size="Size.Large"
+                                     Href="/animals">
+                                Ver Animales
+                            </MudButton>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudButton Variant="Variant.Outlined" 
+                                     Color="Color.Tertiary" 
+                                     FullWidth="true"
+                                     StartIcon="Icons.Material.Filled.Assignment"
+                                     Class="pa-4"
+                                     Size="Size.Large"
+                                     Href="/reportes">
+                                Reportes
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Recent Activity -->
+        <MudItem xs="12" md="4">
+            <MudCard Elevation="3" Style="height: 100%;">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="Icons.Material.Filled.History" Class="mr-3" />
+                            <MudText Typo="Typo.h6">Actividad Reciente</MudText>
+                        </div>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (animales.Take(5).Any())
+                    {
+                        <MudList T="object" Dense="true">
+                            @foreach (var animal in animales.Take(5))
+                            {
+                                <MudListItem T="object">
+                                    <div class="d-flex align-center">
+                                        <MudAvatar Size="Size.Small" Color="Color.Primary" Class="mr-3">
+                                            <MudIcon Icon="Icons.Material.Filled.Pets" Size="Size.Small" />
+                                        </MudAvatar>
+                                        <div>
+                                            <MudText Typo="Typo.body2" Style="font-weight: 500;">
+                                                @animal.CodigoRfid
+                                            </MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                                                @animal.FechaRegistro.ToString("dd/MM/yyyy")
+                                            </MudText>
+                                        </div>
+                                    </div>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    }
+                    else
+                    {
+                        <div class="text-center pa-6">
+                            <MudIcon Icon="Icons.Material.Filled.Inbox" Size="Size.Large" Color="Color.Tertiary" Class="mb-3" />
+                            <MudText Typo="Typo.body2" Color="Color.Tertiary">
+                                No hay actividad reciente
+                            </MudText>
+                        </div>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private List<Animale> animales = new();
+    private bool loading = true;
+    private int totalItems = 0;
+    private int animalesActivos = 0;
+    private double pesoPromedio = 0;
+    private int animalesRecientes = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardDataAsync();
+    }
+
+    private async Task LoadDashboardDataAsync()
+    {
+        loading = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await AnimalService.GetAnimalesPaginadosAsync(1, 20);
+            animales = result.animales;
+            totalItems = result.totalCount;
+            
+            animalesActivos = animales.Count(a => a.EstadoAnimal?.Nombre?.ToLower() != "inactivo");
+            pesoPromedio = animales.Any() ? (double)animales.Average(a => a.PesoActualLibras) : 0;
+            animalesRecientes = animales.Count(a => a.FechaRegistro.Date == DateTime.Today);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando datos del dashboard: {ex.Message}");
+            animales = new List<Animale>();
+            totalItems = 0;
+            animalesActivos = 0;
+            pesoPromedio = 0;
+            animalesRecientes = 0;
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+}

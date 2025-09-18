@@ -1,0 +1,198 @@
+@page "/unidades-medida-alimento"
+@page "/unidades-medida-alimentos"
+@using Database.Models
+@using BackOffice.Services
+@inject IUnidadesDeMedidaAlimentoService UnidadesDeMedidaAlimentoService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Gestión de Unidades de Medida de Alimentos</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Gestión de Unidades de Medida de Alimentos</MudText>
+    
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <MudText Typo="Typo.h6">Lista de Unidades de Medida</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="Icons.Material.Filled.Add"
+                              OnClick="OpenCreateDialog">
+                        Nueva Unidad de Medida
+                    </MudButton>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        
+        <MudCardContent>
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else
+            {
+                <MudTable Items="unidadesDeMedida" 
+                         Hover="true" 
+                         Dense="true"
+                         Striped="true"
+                         Loading="isLoading">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Nombre de la Unidad</MudTh>
+                        <MudTh Style="text-align: center;">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.Id</MudTd>
+                        <MudTd DataLabel="Nombre">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary">@context.Nombre</MudChip>
+                        </MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                <MudTooltip Text="Editar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Edit" 
+                                                 Color="Color.Warning"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => OpenEditDialog(context)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Eliminar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Delete" 
+                                                 Color="Color.Error"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => DeleteUnidadDeMedida(context)" />
+                                </MudTooltip>
+                            </MudButtonGroup>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Mostrando @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalItems)) de @totalItems registros
+                    </MudText>
+                    
+                    <MudPagination Count="@totalPages" 
+                                  Selected="@currentPage" 
+                                  SelectedChanged="OnPageChanged"
+                                  ShowFirstButton="true"
+                                  ShowLastButton="true"
+                                  ShowPreviousButton="true"
+                                  ShowNextButton="true"
+                                  Rectangular="true"
+                                  Size="Size.Small" />
+                </div>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<UnidadesDeMedidaAlimento> unidadesDeMedida = new();
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalItems = 0;
+    private int totalPages = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUnidadesDeMedida();
+    }
+
+    private async Task LoadUnidadesDeMedida()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await UnidadesDeMedidaAlimentoService.GetUnidadesDeMedidaAlimentoPaginadosAsync(currentPage, pageSize);
+            unidadesDeMedida = result.unidades;
+            totalItems = result.totalCount;
+            totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar unidades de medida: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        currentPage = page;
+        await LoadUnidadesDeMedida();
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<UnidadesDeMedidaAlimentoDialog>("Crear Unidad de Medida", 
+            new DialogParameters<UnidadesDeMedidaAlimentoDialog> 
+            { 
+                { x => x.IsEditMode, false } 
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadUnidadesDeMedida();
+            Snackbar.Add("Unidad de medida creada exitosamente", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(UnidadesDeMedidaAlimento unidad)
+    {
+        var dialog = await DialogService.ShowAsync<UnidadesDeMedidaAlimentoDialog>("Editar Unidad de Medida", 
+            new DialogParameters<UnidadesDeMedidaAlimentoDialog> 
+            { 
+                { x => x.IsEditMode, true },
+                { x => x.UnidadDeMedida, unidad }
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadUnidadesDeMedida();
+        }
+    }
+
+    private async Task DeleteUnidadDeMedida(UnidadesDeMedidaAlimento unidad)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirmar eliminación",
+            $"¿Está seguro de que desea eliminar la unidad de medida '{unidad.Nombre}'?",
+            yesText: "Eliminar", 
+            cancelText: "Cancelar");
+
+        if (confirmed == true)
+        {
+            try
+            {
+                var success = await UnidadesDeMedidaAlimentoService.DeleteUnidadesDeMedidaAlimentoAsync(unidad.Id);
+                if (success)
+                {
+                    await LoadUnidadesDeMedida();
+                    Snackbar.Add("Unidad de medida eliminada exitosamente", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Error al eliminar la unidad de medida", Severity.Error);
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Warning);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al eliminar unidad de medida: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

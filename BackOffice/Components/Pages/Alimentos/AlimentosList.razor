@@ -1,0 +1,242 @@
+@page "/alimentos"
+@using Database.Models
+@using BackOffice.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy="UserOnly")]
+@inject IAlimentoService AlimentoService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Gestión de Alimentos</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Gestión de Alimentos</MudText>
+    
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <MudText Typo="Typo.h6">Lista de Alimentos</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="Icons.Material.Filled.Add"
+                              OnClick="OpenCreateDialog">
+                        Nuevo Alimento
+                    </MudButton>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        
+        <MudCardContent>
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else
+            {
+                <MudTable Items="alimentos" 
+                         Hover="true" 
+                         Dense="true"
+                         Striped="true"
+                         Loading="isLoading">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Nombre</MudTh>
+                        <MudTh>Tipo de Alimento</MudTh>
+                        <MudTh>Unidad de Medida</MudTh>
+                        <MudTh>Stock</MudTh>
+                        <MudTh>Fecha Registro</MudTh>
+                        <MudTh Style="text-align: center;">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.Id</MudTd>
+                        <MudTd DataLabel="Nombre">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info">@context.Nombre</MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Tipo">@context.TipoAlimento?.NombreTipo</MudTd>
+                        <MudTd DataLabel="Unidad">@context.UnidadesDeMedidaAlimentos?.Nombre</MudTd>
+                        <MudTd DataLabel="Stock">
+                            <MudChip T="string" Size="Size.Small" Color="GetStockColor(context.Stock)">
+                                @context.Stock.ToString("F2")
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Fecha">@context.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                <MudTooltip Text="Ver Bitácora">
+                                    <MudIconButton Icon="Icons.Material.Filled.History" 
+                                                 Color="Color.Info"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => ViewBitacoraAlimento(context)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Editar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Edit" 
+                                                 Color="Color.Warning"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => OpenEditDialog(context)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Eliminar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Delete" 
+                                                 Color="Color.Error"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => DeleteAlimento(context)" />
+                                </MudTooltip>
+                            </MudButtonGroup>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Mostrando @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalItems)) de @totalItems registros
+                    </MudText>
+                    
+                    <MudPagination Count="@totalPages" 
+                                  Selected="@currentPage" 
+                                  SelectedChanged="OnPageChanged"
+                                  ShowFirstButton="true"
+                                  ShowLastButton="true"
+                                  ShowPreviousButton="true"
+                                  ShowNextButton="true"
+                                  Rectangular="true"
+                                  Size="Size.Small" />
+                </div>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<Alimento> alimentos = new();
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalItems = 0;
+    private int totalPages = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAlimentos();
+    }
+
+    private async Task LoadAlimentos()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await AlimentoService.GetAlimentosPaginadosAsync(currentPage, pageSize);
+            alimentos = result.alimentos;
+            totalItems = result.totalCount;
+            totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar alimentos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        currentPage = page;
+        await LoadAlimentos();
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<AlimentoDialog>("Crear Alimento", 
+            new DialogParameters<AlimentoDialog> 
+            { 
+                { x => x.IsEditMode, false } 
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadAlimentos();
+            Snackbar.Add("Alimento creado exitosamente", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(Alimento alimento)
+    {
+        var dialog = await DialogService.ShowAsync<AlimentoDialog>("Editar Alimento", 
+            new DialogParameters<AlimentoDialog> 
+            { 
+                { x => x.IsEditMode, true },
+                { x => x.Alimento, alimento }
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadAlimentos();
+        }
+    }
+
+    private async Task DeleteAlimento(Alimento alimento)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirmar eliminación",
+            $"¿Está seguro de que desea eliminar el alimento '{alimento.Nombre}'?",
+            yesText: "Eliminar", 
+            cancelText: "Cancelar");
+
+        if (confirmed == true)
+        {
+            try
+            {
+                var success = await AlimentoService.DeleteAlimentoAsync(alimento.Id);
+                if (success)
+                {
+                    await LoadAlimentos();
+                    Snackbar.Add("Alimento eliminado exitosamente", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Error al eliminar el alimento", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al eliminar alimento: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task ViewBitacoraAlimento(Alimento alimento)
+    {
+        var parameters = new DialogParameters<BitacoraAlimentoViewDialog>
+        {
+            { x => x.AlimentoId, alimento.Id },
+            { x => x.AlimentoNombre, alimento.Nombre }
+        };
+
+        var options = new DialogOptions()
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true
+        };
+
+        await DialogService.ShowAsync<BitacoraAlimentoViewDialog>($"Bitácora de {alimento.Nombre}", parameters, options);
+    }
+
+    private Color GetStockColor(decimal stock)
+    {
+        return stock switch
+        {
+            <= 10 => Color.Error,
+            <= 50 => Color.Warning,
+            _ => Color.Success
+        };
+    }
+}

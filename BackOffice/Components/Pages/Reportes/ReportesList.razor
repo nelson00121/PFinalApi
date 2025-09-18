@@ -1,0 +1,231 @@
+@page "/reportes"
+@using Database.Models
+@using BackOffice.Services
+@inject IReporteService ReporteService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Gestión de Reportes</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Gestión de Reportes</MudText>
+    
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <MudText Typo="Typo.h6">Lista de Reportes</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="Icons.Material.Filled.Add"
+                              OnClick="OpenCreateDialog">
+                        Nuevo Reporte
+                    </MudButton>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        
+        <MudCardContent>
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else
+            {
+                <MudTable Items="reportes" 
+                         Hover="true" 
+                         Dense="true"
+                         Striped="true"
+                         Loading="isLoading">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Animal</MudTh>
+                        <MudTh>Empleado</MudTh>
+                        <MudTh>Descripción</MudTh>
+                        <MudTh>Fecha Registro</MudTh>
+                        <MudTh Style="text-align: center;">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.Id</MudTd>
+                        <MudTd DataLabel="Animal">
+                            <div>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info">
+                                    @context.Animal?.CodigoRfid
+                                </MudChip>
+                                <br />
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @context.Animal?.Raza?.Nombre
+                                </MudText>
+                            </div>
+                        </MudTd>
+                        <MudTd DataLabel="Empleado">
+                            @context.Empleado?.PrimerNombre @context.Empleado?.PrimerApellido
+                        </MudTd>
+                        <MudTd DataLabel="Descripción">
+                            <MudText Style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                @context.Descripcion
+                            </MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Fecha">@context.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                <MudTooltip Text="Ver detalles">
+                                    <MudIconButton Icon="Icons.Material.Filled.Visibility" 
+                                                 Color="Color.Info"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => ViewReporte(context.Id)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Editar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Edit" 
+                                                 Color="Color.Warning"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => OpenEditDialog(context)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Eliminar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Delete" 
+                                                 Color="Color.Error"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => DeleteReporte(context)" />
+                                </MudTooltip>
+                            </MudButtonGroup>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Mostrando @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalItems)) de @totalItems registros
+                    </MudText>
+                    
+                    <MudPagination Count="@totalPages" 
+                                  Selected="@currentPage" 
+                                  SelectedChanged="OnPageChanged"
+                                  ShowFirstButton="true"
+                                  ShowLastButton="true"
+                                  ShowPreviousButton="true"
+                                  ShowNextButton="true"
+                                  Rectangular="true"
+                                  Size="Size.Small" />
+                </div>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<Reporte> reportes = new();
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalItems = 0;
+    private int totalPages = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReportes();
+    }
+
+    private async Task LoadReportes()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await ReporteService.GetReportesPaginadosAsync(currentPage, pageSize);
+            reportes = result.reportes;
+            totalItems = result.totalCount;
+            totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar reportes: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        currentPage = page;
+        await LoadReportes();
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<ReporteDialog>("Crear Reporte", 
+            new DialogParameters<ReporteDialog> 
+            { 
+                { x => x.IsEditMode, false } 
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadReportes();
+            Snackbar.Add("Reporte creado exitosamente", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(Reporte reporte)
+    {
+        var dialog = await DialogService.ShowAsync<ReporteDialog>("Editar Reporte", 
+            new DialogParameters<ReporteDialog> 
+            { 
+                { x => x.IsEditMode, true },
+                { x => x.Reporte, reporte }
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadReportes();
+        }
+    }
+
+    private async Task ViewReporte(int reporteId)
+    {
+        var dialog = await DialogService.ShowAsync<ReporteDetailsDialog>("Detalles del Reporte",
+            new DialogParameters<ReporteDetailsDialog>
+            {
+                { x => x.ReporteId, reporteId }
+            });
+
+        await dialog.Result;
+    }
+
+    private async Task DeleteReporte(Reporte reporte)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirmar eliminación",
+            $"¿Está seguro de que desea eliminar este reporte?",
+            yesText: "Eliminar", 
+            cancelText: "Cancelar");
+
+        if (confirmed == true)
+        {
+            try
+            {
+                var success = await ReporteService.DeleteReporteAsync(reporte.Id);
+                if (success)
+                {
+                    await LoadReportes();
+                    Snackbar.Add("Reporte eliminado exitosamente", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Error al eliminar el reporte", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al eliminar reporte: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

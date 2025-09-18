@@ -1,0 +1,205 @@
+@page "/compra-alimentos"
+@using Database.Models
+@using BackOffice.Services
+@inject ICompraAlimentoService CompraAlimentoService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Gestión de Compra de Alimentos</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Gestión de Compra de Alimentos</MudText>
+    
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <MudText Typo="Typo.h6">Lista de Compras de Alimentos</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="Icons.Material.Filled.Add"
+                              OnClick="OpenCreateDialog">
+                        Nueva Compra
+                    </MudButton>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        
+        <MudCardContent>
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else
+            {
+                <MudTable Items="compras" 
+                         Hover="true" 
+                         Dense="true"
+                         Striped="true"
+                         Loading="isLoading">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Alimento</MudTh>
+                        <MudTh>Tipo</MudTh>
+                        <MudTh>Cantidad Comprada</MudTh>
+                        <MudTh>Unidad</MudTh>
+                        <MudTh>Fecha Registro</MudTh>
+                        <MudTh Style="text-align: center;">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.Id</MudTd>
+                        <MudTd DataLabel="Alimento">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info">@context.Alimento?.Nombre</MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Tipo">@context.Alimento?.TipoAlimento?.NombreTipo</MudTd>
+                        <MudTd DataLabel="Cantidad">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                                @context.CantidadComprada?.ToString("F2")
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Unidad">@context.Alimento?.UnidadesDeMedidaAlimentos?.Nombre</MudTd>
+                        <MudTd DataLabel="Fecha">@context.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                <MudTooltip Text="Editar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Edit" 
+                                                 Color="Color.Warning"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => OpenEditDialog(context)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Eliminar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Delete" 
+                                                 Color="Color.Error"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => DeleteCompra(context)" />
+                                </MudTooltip>
+                            </MudButtonGroup>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                @if (!compras.Any() && !isLoading)
+                {
+                    <div style="text-align: center; padding: 2rem;">
+                        <MudIcon Icon="Icons.Material.Filled.ShoppingCart" Size="Size.Large" Color="Color.Secondary" />
+                        <MudText Typo="Typo.h6" Color="Color.Secondary">No hay compras registradas</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Registra tu primera compra de alimento</MudText>
+                    </div>
+                }
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<CompraAlimento> compras = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCompras();
+    }
+
+    private async Task LoadCompras()
+    {
+        isLoading = true;
+        try
+        {
+            compras = await CompraAlimentoService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar las compras: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters<CompraAlimentoDialog>
+        {
+            { x => x.IsEditMode, false }
+        };
+
+        var options = new DialogOptions()
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<CompraAlimentoDialog>("Nueva Compra de Alimento", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadCompras();
+        }
+    }
+
+    private async Task OpenEditDialog(CompraAlimento compra)
+    {
+        var parameters = new DialogParameters<CompraAlimentoDialog>
+        {
+            { x => x.IsEditMode, true },
+            { x => x.CompraAlimento, compra }
+        };
+
+        var options = new DialogOptions()
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<CompraAlimentoDialog>($"Editar Compra #{compra.Id}", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadCompras();
+        }
+    }
+
+    private async Task DeleteCompra(CompraAlimento compra)
+    {
+        var parameters = new DialogParameters<MudMessageBox>
+        {
+            { "Title", "Confirmar eliminación" },
+            { "Message", $"¿Está seguro que desea eliminar la compra de {compra.Alimento?.Nombre} por {compra.CantidadComprada:F2} {compra.Alimento?.UnidadesDeMedidaAlimentos?.Nombre}?" },
+            { "YesText", "Eliminar" },
+            { "NoText", "Cancelar" }
+        };
+
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Confirmar eliminación", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                var success = await CompraAlimentoService.DeleteAsync(compra.Id);
+                if (success)
+                {
+                    Snackbar.Add("Compra eliminada exitosamente", Severity.Success);
+                    await LoadCompras();
+                }
+                else
+                {
+                    Snackbar.Add("Error al eliminar la compra", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al eliminar: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

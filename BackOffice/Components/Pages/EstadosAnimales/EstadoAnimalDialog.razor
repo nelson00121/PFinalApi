@@ -1,0 +1,117 @@
+@using Database.Models
+@using Database.DTOS
+@using BackOffice.Services
+@using BackOffice.Mapper
+@inject IEstadoAnimalService EstadoAnimalService
+@inject ISnackbar Snackbar
+@inject Mapa Mapper
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 500px;">
+            <EditForm Model="@dto" OnValidSubmit="OnValidSubmit">
+                <DataAnnotationsValidator />
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudTextField Label="Nombre del Estado" 
+                                    @bind-Value="dto.Nombre"
+                                    For="@(() => dto.Nombre)"
+                                    Variant="Variant.Outlined"
+                                    Required="true"
+                                    MaxLength="50" />
+                    </MudItem>
+                </MudGrid>
+            </EditForm>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" StartIcon="Icons.Material.Filled.Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   OnClick="Submit"
+                   StartIcon="@(IsEditMode ? Icons.Material.Filled.Update : Icons.Material.Filled.Save)"
+                   Disabled="isSubmitting">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                <MudText Class="ms-2">@(IsEditMode ? "Actualizando..." : "Creando...")</MudText>
+            }
+            else
+            {
+                <MudText>@(IsEditMode ? "Actualizar" : "Crear")</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    
+    [Parameter] public bool IsEditMode { get; set; } = false;
+    [Parameter] public EstadosAnimale? Estado { get; set; }
+
+    private EstadosAnimaleCreateDto dto = new();
+    private bool isSubmitting = false;
+
+    protected override void OnInitialized()
+    {
+        if (IsEditMode && Estado != null)
+        {
+            dto.Id = Estado.Id;
+            dto.Nombre = Estado.Nombre;
+        }
+    }
+
+    private async Task OnValidSubmit()
+    {
+        await Submit();
+    }
+
+    private async Task Submit()
+    {
+        if (isSubmitting) return;
+
+        isSubmitting = true;
+        try
+        {
+            // Validar que el nombre no exista (excepto si es edición del mismo registro)
+            var nombreExists = await EstadoAnimalService.NombreExistsAsync(dto.Nombre, dto.Id);
+            if (nombreExists)
+            {
+                Snackbar.Add("Ya existe un estado con ese nombre", Severity.Error);
+                return;
+            }
+
+            var estado = Mapper.EstadosAnimaleCreateDtoToEstadosAnimale(dto);
+
+            if (IsEditMode && dto.Id.HasValue)
+            {
+                estado.Id = dto.Id.Value;
+                var updatedEstado = await EstadoAnimalService.UpdateEstadoAsync(estado.Id, estado);
+                if (updatedEstado != null)
+                {
+                    MudDialog.Close(DialogResult.Ok(updatedEstado));
+                }
+                else
+                {
+                    Snackbar.Add("Error al actualizar el estado", Severity.Error);
+                }
+            }
+            else
+            {
+                var newEstado = await EstadoAnimalService.CreateEstadoAsync(estado);
+                MudDialog.Close(DialogResult.Ok(newEstado));
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

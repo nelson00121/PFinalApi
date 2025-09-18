@@ -1,0 +1,279 @@
+@page "/animales"
+@page "/animals"
+@using Database.Models
+@using BackOffice.Services
+@inject IAnimalService AnimalService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Gestión de Animales</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Gestión de Animales</MudText>
+    
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <MudText Typo="Typo.h6">Lista de Animales</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="Icons.Material.Filled.Add"
+                              OnClick="OpenCreateDialog">
+                        Nuevo Animal
+                    </MudButton>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        
+        <MudCardContent>
+            <MudGrid Class="mb-3">
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField @bind-Value="searchTerm"
+                                 Label="Buscar por Código RFID, Raza o Estado"
+                                 Placeholder="Ingrese término de búsqueda..."
+                                 Variant="Variant.Outlined"
+                                 Adornment="Adornment.End"
+                                 AdornmentIcon="@Icons.Material.Filled.Search"
+                                 OnKeyUp="@(async (e) => { if (e.Key == "Enter") await SearchAnimales(); })"
+                                 Clearable="true"
+                                 OnClearButtonClick="@(async () => { searchTerm = string.Empty; await SearchAnimales(); })" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="2">
+                    <MudButton Variant="Variant.Filled"
+                              Color="Color.Primary"
+                              StartIcon="@Icons.Material.Filled.Search"
+                              OnClick="SearchAnimales"
+                              FullWidth="true"
+                              Class="mud-height-full">
+                        Buscar
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+            
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else
+            {
+                <MudTable Items="animales" 
+                         Hover="true" 
+                         Dense="true"
+                         Striped="true"
+                         Loading="isLoading">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Código RFID</MudTh>
+                        <MudTh>Raza</MudTh>
+                        <MudTh>Estado</MudTh>
+                        <MudTh>Peso (lbs)</MudTh>
+                        <MudTh>Fecha Registro</MudTh>
+                        <MudTh Style="text-align: center;">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.Id</MudTd>
+                        <MudTd DataLabel="Código RFID">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info">@context.CodigoRfid</MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Raza">@context.Raza?.Nombre</MudTd>
+                        <MudTd DataLabel="Estado">
+                            <MudChip T="string" Size="Size.Small" Color="GetEstadoColor(context.EstadoAnimal?.Nombre)">
+                                @context.EstadoAnimal?.Nombre
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Peso">@context.PesoActualLibras.ToString("F2")</MudTd>
+                        <MudTd DataLabel="Fecha">@context.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                <MudTooltip Text="Ver detalles">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" 
+                                                 Color="Color.Info"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => ViewAnimal(context.Id)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Ver bitácora">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Assignment" 
+                                                 Color="Color.Secondary"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => ViewBitacora(context.Id)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Editar">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                                 Color="Color.Warning"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => OpenEditDialog(context)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Eliminar">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                                 Color="Color.Error"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => DeleteAnimal(context)" />
+                                </MudTooltip>
+                            </MudButtonGroup>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Mostrando @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalItems)) de @totalItems registros
+                    </MudText>
+                    
+                    <MudPagination Count="@totalPages" 
+                                  Selected="@currentPage" 
+                                  SelectedChanged="OnPageChanged"
+                                  ShowFirstButton="true"
+                                  ShowLastButton="true"
+                                  ShowPreviousButton="true"
+                                  ShowNextButton="true"
+                                  Rectangular="true"
+                                  Size="Size.Small" />
+                </div>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<Animale> animales = new();
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalItems = 0;
+    private int totalPages = 0;
+    private string searchTerm = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAnimales();
+    }
+
+    private async Task LoadAnimales()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await AnimalService.GetAnimalesPaginadosAsync(currentPage, pageSize, searchTerm);
+            animales = result.animales;
+            totalItems = result.totalCount;
+            totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar animales: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    private async Task SearchAnimales()
+    {
+        currentPage = 1; // Resetear a la primera página al buscar
+        await LoadAnimales();
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        currentPage = page;
+        await LoadAnimales();
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<AnimalDialog>("Crear Animal", 
+            new DialogParameters<AnimalDialog> 
+            { 
+                { x => x.IsEditMode, false } 
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadAnimales();
+            Snackbar.Add("Animal creado exitosamente", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(Animale animal)
+    {
+        var dialog = await DialogService.ShowAsync<AnimalDialog>("Editar Animal", 
+            new DialogParameters<AnimalDialog> 
+            { 
+                { x => x.IsEditMode, true },
+                { x => x.Animal, animal }
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadAnimales();
+        }
+    }
+
+    private async Task ViewAnimal(int animalId)
+    {
+        var dialog = await DialogService.ShowAsync<AnimalDetailsDialog>("Detalles del Animal",
+            new DialogParameters<AnimalDetailsDialog>
+            {
+                { x => x.AnimalId, animalId }
+            });
+
+        await dialog.Result;
+    }
+
+    private void ViewBitacora(int animalId)
+    {
+        Navigation.NavigateTo($"/animals/{animalId}/bitacora");
+    }
+
+    private async Task DeleteAnimal(Animale animal)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirmar eliminación",
+            $"¿Está seguro de que desea eliminar el animal con código RFID '{animal.CodigoRfid}'?",
+            yesText: "Eliminar", 
+            cancelText: "Cancelar");
+
+        if (confirmed == true)
+        {
+            try
+            {
+                var success = await AnimalService.DeleteAnimalAsync(animal.Id);
+                if (success)
+                {
+                    await LoadAnimales();
+                    Snackbar.Add("Animal eliminado exitosamente", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Error al eliminar el animal", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al eliminar animal: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private Color GetEstadoColor(string? estado)
+    {
+        return estado?.ToLower() switch
+        {
+            "activo" => Color.Success,
+            "enfermo" => Color.Warning,
+            "muerto" => Color.Error,
+            _ => Color.Default
+        };
+    }
+}

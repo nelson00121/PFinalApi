@@ -1,0 +1,217 @@
+@using Database.Models
+@using BackOffice.Services
+@using MudBlazor
+@inject IAnimalService AnimalService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 800px;">
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else if (animal != null)
+            {
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h5" GutterBottom="true">
+                            <MudIcon Icon="Icons.Material.Filled.Pets" Class="me-2" />
+                            Detalles del Animal
+                        </MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudCard Elevation="2">
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">Información Básica</MudText>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                <MudStack Spacing="3">
+                                    <div>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">ID</MudText>
+                                        <MudText Typo="Typo.body1">@animal.Id</MudText>
+                                    </div>
+                                    
+                                    <div>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Código RFID</MudText>
+                                        <MudChip T="string" Size="Size.Medium" Color="Color.Info">@animal.CodigoRfid</MudChip>
+                                    </div>
+                                    
+                                    <div>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Raza</MudText>
+                                        <MudText Typo="Typo.body1">@animal.Raza?.Nombre</MudText>
+                                    </div>
+                                    
+                                    <div>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Estado Actual</MudText>
+                                        <MudChip T="string" Size="Size.Medium" Color="GetEstadoColor(animal.EstadoAnimal?.Nombre)">
+                                            @animal.EstadoAnimal?.Nombre
+                                        </MudChip>
+                                    </div>
+                                </MudStack>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudCard Elevation="2">
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">Información Física</MudText>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                <MudStack Spacing="3">
+                                    <div>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Peso Actual</MudText>
+                                        <MudText Typo="Typo.h6" Color="Color.Primary">
+                                            @animal.PesoActualLibras.ToString("F2") lbs
+                                        </MudText>
+                                    </div>
+                                    
+                                    <div>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Fecha de Registro</MudText>
+                                        <MudText Typo="Typo.body1">@animal.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</MudText>
+                                    </div>
+                                </MudStack>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudCard Elevation="2">
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">Estadísticas Relacionadas</MudText>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                <MudGrid>
+                                    <MudItem xs="12" sm="6" md="3">
+                                        <MudPaper Elevation="1" Class="pa-4 text-center">
+                                            <MudIcon Icon="Icons.Material.Filled.Scale" Size="Size.Large" Color="Color.Primary" />
+                                            <MudText Typo="Typo.h6">@animal.BitacoraPesos.Count</MudText>
+                                            <MudText Typo="Typo.body2" Color="Color.Secondary">Registros de Peso</MudText>
+                                        </MudPaper>
+                                    </MudItem>
+                                    
+                                    <MudItem xs="12" sm="6" md="3">
+                                        <MudPaper Elevation="1" Class="pa-4 text-center">
+                                            <MudIcon Icon="Icons.Material.Filled.Healing" Size="Size.Large" Color="Color.Success" />
+                                            <MudText Typo="Typo.h6">@animal.BitacorasVacunas.Count</MudText>
+                                            <MudText Typo="Typo.body2" Color="Color.Secondary">Vacunas Aplicadas</MudText>
+                                        </MudPaper>
+                                    </MudItem>
+                                    
+                                    <MudItem xs="12" sm="6" md="3">
+                                        <MudPaper Elevation="1" Class="pa-4 text-center">
+                                            <MudIcon Icon="Icons.Material.Filled.Restaurant" Size="Size.Large" Color="Color.Warning" />
+                                            <MudText Typo="Typo.h6">@animal.HistorialAlimenticios.Count</MudText>
+                                            <MudText Typo="Typo.body2" Color="Color.Secondary">Registros Alimenticios</MudText>
+                                        </MudPaper>
+                                    </MudItem>
+                                    
+                                    <MudItem xs="12" sm="6" md="3">
+                                        <MudPaper Elevation="1" Class="pa-4 text-center">
+                                            <MudIcon Icon="Icons.Material.Filled.Report" Size="Size.Large" Color="Color.Error" />
+                                            <MudText Typo="Typo.h6">@animal.Reportes.Count</MudText>
+                                            <MudText Typo="Typo.body2" Color="Color.Secondary">Reportes</MudText>
+                                        </MudPaper>
+                                    </MudItem>
+                                </MudGrid>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+
+                    @if (animal.BitacoraPesos.Any())
+                    {
+                        <MudItem xs="12">
+                            <MudCard Elevation="2">
+                                <MudCardHeader>
+                                    <CardHeaderContent>
+                                        <MudText Typo="Typo.h6">Últimos Registros de Peso</MudText>
+                                    </CardHeaderContent>
+                                </MudCardHeader>
+                                <MudCardContent>
+                                    <MudTable Items="animal.BitacoraPesos.OrderByDescending(bp => bp.FechaRegistro).Take(5)"
+                                             Dense="true" 
+                                             Striped="true">
+                                        <HeaderContent>
+                                            <MudTh>Fecha</MudTh>
+                                            <MudTh>Peso (lbs)</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate>
+                                            <MudTd>@context.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                                            <MudTd>@context.Peso.ToString("F2")</MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning">
+                    No se encontró el animal solicitado.
+                </MudAlert>
+            }
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary" OnClick="Close">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    IDialogReference? MudDialog { get; set; }
+    
+
+    [Parameter] 
+    public int AnimalId { get; set; }
+
+    private Animale? animal;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAnimalDetails();
+    }
+
+    private async Task LoadAnimalDetails()
+    {
+        isLoading = true;
+        try
+        {
+            animal = await AnimalService.GetAnimalByIdAsync(AnimalId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar los detalles del animal: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private Color GetEstadoColor(string? estado)
+    {
+        return estado?.ToLower() switch
+        {
+            "activo" => Color.Success,
+            "enfermo" => Color.Warning,
+            "muerto" => Color.Error,
+            _ => Color.Default
+        };
+    }
+
+    void Close() => MudDialog?.Close();
+}

@@ -1,0 +1,249 @@
+@page "/bitacora-vacunas"
+@using Database.Models
+@using BackOffice.Services
+@inject IBitacoraVacunaService BitacoraVacunaService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Bitácora de Vacunas</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Bitácora de Vacunas</MudText>
+    
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <MudText Typo="Typo.h6">Registro de Vacunaciones</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="Icons.Material.Filled.Add"
+                              OnClick="OpenCreateDialog">
+                        Registrar Vacunación
+                    </MudButton>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        
+        <MudCardContent>
+            <MudGrid Class="mb-3">
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField @bind-Value="searchTerm"
+                                 Label="Buscar por Código RFID o Vacuna"
+                                 Placeholder="Ingrese término de búsqueda..."
+                                 Variant="Variant.Outlined"
+                                 Adornment="Adornment.End"
+                                 AdornmentIcon="@Icons.Material.Filled.Search"
+                                 OnKeyUp="@(async (e) => { if (e.Key == "Enter") await SearchBitacoras(); })"
+                                 Clearable="true"
+                                 OnClearButtonClick="@(async () => { searchTerm = string.Empty; await SearchBitacoras(); })" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="2">
+                    <MudButton Variant="Variant.Filled"
+                              Color="Color.Primary"
+                              StartIcon="@Icons.Material.Filled.Search"
+                              OnClick="SearchBitacoras"
+                              FullWidth="true"
+                              Class="mud-height-full">
+                        Buscar
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+            
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else
+            {
+                <MudTable Items="bitacoras" 
+                         Hover="true" 
+                         Dense="true"
+                         Striped="true"
+                         Loading="isLoading">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Animal</MudTh>
+                        <MudTh>Raza</MudTh>
+                        <MudTh>Vacuna</MudTh>
+                        <MudTh>Fecha Aplicación</MudTh>
+                        <MudTh Style="text-align: center;">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.Id</MudTd>
+                        <MudTd DataLabel="Animal">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info">
+                                @context.Animal?.CodigoRfid
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Raza">@context.Animal?.Raza?.Nombre</MudTd>
+                        <MudTd DataLabel="Vacuna">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                                @context.Vacuna?.Nombre
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Fecha">@context.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                <MudTooltip Text="Editar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Edit" 
+                                                 Color="Color.Warning"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => OpenEditDialog(context)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Eliminar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Delete" 
+                                                 Color="Color.Error"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => DeleteBitacora(context)" />
+                                </MudTooltip>
+                            </MudButtonGroup>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Mostrando @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalItems)) de @totalItems registros
+                    </MudText>
+                    
+                    <MudPagination Count="@totalPages" 
+                                  Selected="@currentPage" 
+                                  SelectedChanged="OnPageChanged"
+                                  ShowFirstButton="true"
+                                  ShowLastButton="true"
+                                  ShowPreviousButton="true"
+                                  ShowNextButton="true"
+                                  Rectangular="true"
+                                  Size="Size.Small" />
+                </div>
+                
+                @if (!bitacoras.Any() && !string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    <MudAlert Severity="Severity.Info" Class="mt-4">
+                        No se encontraron registros que coincidan con "@searchTerm".
+                    </MudAlert>
+                }
+                else if (!bitacoras.Any())
+                {
+                    <MudAlert Severity="Severity.Info" Class="mt-4">
+                        No hay registros de vacunación disponibles.
+                    </MudAlert>
+                }
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<BitacorasVacuna> bitacoras = new();
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalItems = 0;
+    private int totalPages = 0;
+    private string searchTerm = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBitacoras();
+    }
+
+    private async Task LoadBitacoras()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await BitacoraVacunaService.GetBitacorasVacunaPaginadasAsync(currentPage, pageSize, searchTerm);
+            bitacoras = result.bitacoras;
+            totalItems = result.totalCount;
+            totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar bitácora de vacunas: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        currentPage = page;
+        await LoadBitacoras();
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<BitacoraVacunaDialog>("Registrar Vacunación", 
+            new DialogParameters<BitacoraVacunaDialog> 
+            { 
+                { x => x.IsEditMode, false } 
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadBitacoras();
+            Snackbar.Add("Vacunación registrada exitosamente", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(BitacorasVacuna bitacora)
+    {
+        var dialog = await DialogService.ShowAsync<BitacoraVacunaDialog>("Editar Registro de Vacunación", 
+            new DialogParameters<BitacoraVacunaDialog> 
+            { 
+                { x => x.IsEditMode, true },
+                { x => x.BitacoraVacuna, bitacora }
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadBitacoras();
+        }
+    }
+
+    private async Task DeleteBitacora(BitacorasVacuna bitacora)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirmar eliminación",
+            $"¿Está seguro de que desea eliminar el registro de vacunación del animal '{bitacora.Animal?.CodigoRfid}' con la vacuna '{bitacora.Vacuna?.Nombre}'?",
+            yesText: "Eliminar", 
+            cancelText: "Cancelar");
+
+        if (confirmed == true)
+        {
+            try
+            {
+                var success = await BitacoraVacunaService.DeleteBitacoraVacunaAsync(bitacora.Id);
+                if (success)
+                {
+                    await LoadBitacoras();
+                    Snackbar.Add("Registro eliminado exitosamente", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Error al eliminar el registro", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al eliminar registro: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+    
+    private async Task SearchBitacoras()
+    {
+        currentPage = 1;
+        await LoadBitacoras();
+    }
+}

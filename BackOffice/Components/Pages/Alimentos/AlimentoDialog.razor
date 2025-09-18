@@ -1,0 +1,234 @@
+@using Database.Models
+@using Database.DTOS
+@using BackOffice.Services
+@using MudBlazor
+@inject IAlimentoService AlimentoService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 600px;">
+            <MudForm @ref="form" @bind-IsValid="@isFormValid">
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="model.Nombre"
+                                     Label="Nombre del Alimento"
+                                     Variant="Variant.Outlined"
+                                     Required="true"
+                                     RequiredError="El nombre del alimento es obligatorio"
+                                     Validation="@(new Func<string, Task<IEnumerable<string>>>(ValidateNombre))"
+                                     For="@(() => model.Nombre)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="model.TipoAlimentoId"
+                                  Label="Tipo de Alimento"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="Debe seleccionar un tipo de alimento">
+                            @foreach (var tipo in tiposAlimento)
+                            {
+                                <MudSelectItem Value="@tipo.Id">@tipo.NombreTipo</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="model.UnidadesDeMedidaAlimentosId"
+                                  Label="Unidad de Medida"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="Debe seleccionar una unidad de medida">
+                            @foreach (var unidad in unidadesMedida)
+                            {
+                                <MudSelectItem Value="@unidad.Id">@unidad.Nombre</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudNumericField @bind-Value="model.Stock"
+                                        Label="Stock"
+                                        Variant="Variant.Outlined"
+                                        Required="true"
+                                        RequiredError="El stock es obligatorio"
+                                        Min="0"
+                                        Max="999999.99M"
+                                        Step="0.01M"
+                                        Format="F2"
+                                        For="@(() => model.Stock)" />
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" 
+                   StartIcon="Icons.Material.Filled.Cancel">
+            Cancelar
+        </MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled"
+                   OnClick="Submit"
+                   Disabled="@(!isFormValid || isSubmitting)"
+                   StartIcon="@(IsEditMode ? Icons.Material.Filled.Update : Icons.Material.Filled.Save)">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                <MudText Class="ms-2">Procesando...</MudText>
+            }
+            else
+            {
+                @(IsEditMode ? "Actualizar" : "Crear")
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter] 
+    public bool IsEditMode { get; set; } = false;
+
+    [Parameter] 
+    public Alimento? Alimento { get; set; }
+
+    private MudForm form = default!;
+    private bool isFormValid;
+    private bool isSubmitting;
+    private List<TiposAlimento> tiposAlimento = new();
+    private List<UnidadesDeMedidaAlimento> unidadesMedida = new();
+
+    private AlimentoModel model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDropdownData();
+        
+        if (IsEditMode && Alimento != null)
+        {
+            model = new AlimentoModel
+            {
+                Nombre = Alimento.Nombre ?? string.Empty,
+                TipoAlimentoId = Alimento.TipoAlimentoId,
+                UnidadesDeMedidaAlimentosId = Alimento.UnidadesDeMedidaAlimentosId,
+                Stock = Alimento.Stock
+            };
+        }
+    }
+
+    private async Task LoadDropdownData()
+    {
+        try
+        {
+            tiposAlimento = await AlimentoService.GetTiposAlimentoAsync();
+            unidadesMedida = await AlimentoService.GetUnidadesDeMedidaAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar datos: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task<IEnumerable<string>> ValidateNombre(string nombre)
+    {
+        var errors = new List<string>();
+        
+        if (string.IsNullOrWhiteSpace(nombre))
+        {
+            errors.Add("El nombre del alimento es obligatorio");
+            return errors;
+        }
+
+        if (nombre.Length < 2 || nombre.Length > 100)
+        {
+            errors.Add("El nombre debe tener entre 2 y 100 caracteres");
+            return errors;
+        }
+
+        try
+        {
+            var excludeId = IsEditMode && Alimento != null ? Alimento.Id : (int?)null;
+            var exists = await AlimentoService.NombreExistsAsync(nombre, excludeId);
+            if (exists)
+            {
+                errors.Add("Este nombre de alimento ya está en uso");
+            }
+        }
+        catch (Exception)
+        {
+            errors.Add("Error al validar el nombre del alimento");
+        }
+
+        return errors;
+    }
+
+    void Cancel()
+    {   
+        MudDialog?.Close();
+    }
+
+    private async Task Submit()
+    {
+        if (!isFormValid) return;
+
+        isSubmitting = true;
+        try
+        {
+            var alimentoDto = new AlimentoCreateDto
+            {
+                Nombre = model.Nombre,
+                TipoAlimentoId = model.TipoAlimentoId,
+                UnidadesDeMedidaAlimentosId = model.UnidadesDeMedidaAlimentosId,
+                Stock = model.Stock
+            };
+
+            if (IsEditMode && Alimento != null)
+            {
+                var result = await AlimentoService.UpdateAlimentoAsync(Alimento.Id, alimentoDto);
+                if (result != null)
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Alimento actualizado exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Error al actualizar el alimento", Severity.Error);
+                }
+            }
+            else
+            {
+                var result = await AlimentoService.CreateAlimentoAsync(alimentoDto);
+                if (result != null)
+                {
+                    Snackbar.Add("Alimento creado exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Add("Error al crear el alimento", Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar la solicitud: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private class AlimentoModel
+    {
+        public string Nombre { get; set; } = string.Empty;
+        public int TipoAlimentoId { get; set; }
+        public int UnidadesDeMedidaAlimentosId { get; set; }
+        public decimal Stock { get; set; }
+    }
+}

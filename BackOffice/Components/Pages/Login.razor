@@ -1,0 +1,100 @@
+@page "/login"
+@layout EmptyLayout
+@using BackOffice.Components.Layout
+@using BackOffice.Models
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using MudBlazor
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
+
+<PageTitle>Iniciar Sesión</PageTitle>
+
+<div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--mud-palette-background);">
+    <MudContainer MaxWidth="MaxWidth.Small">
+        <MudGrid Justify="Justify.Center" AlignItems="Center">
+            <MudItem xs="12">
+                <MudPaper Elevation="3" Style="padding: 2rem; max-width: 400px; width: 100%;">
+                <MudStack Spacing="4">
+                    <MudText Typo="Typo.h4" Align="Align.Center" Color="Color.Primary">
+                        Sistema de Gestión
+                    </MudText>
+                    
+                    <MudText Typo="Typo.subtitle1" Align="Align.Center">
+                        Iniciar Sesión
+                    </MudText>
+
+                    <form method="post" action="/api/auth/login">
+                        <MudStack Spacing="3">
+                            @if (showError)
+                            {
+                                <MudAlert Severity="Severity.Error">
+                                    Usuario o contraseña incorrectos
+                                </MudAlert>
+                            }
+                            
+                            <MudTextField 
+                                Value="@loginModel.Username"
+                                ValueChanged="@((string value) => loginModel.Username = value)"
+                                Label="Usuario"
+                                Variant="Variant.Outlined"
+                                Adornment="Adornment.Start"
+                                AdornmentIcon="Icons.Material.Filled.Person"
+                                name="username"
+                                required />
+
+                            <MudTextField 
+                                Value="@loginModel.Password"
+                                ValueChanged="@((string value) => loginModel.Password = value)"
+                                Label="Contraseña"
+                                Variant="Variant.Outlined"
+                                InputType="@(_showPassword ? InputType.Text : InputType.Password)"
+                                Adornment="Adornment.End"
+                                AdornmentIcon="@(_showPassword ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff)"
+                                OnAdornmentClick="@(() => _showPassword = !_showPassword)"
+                                name="password"
+                                required />
+
+                          
+
+                            <MudButton 
+                                ButtonType="ButtonType.Submit"
+                                Variant="Variant.Filled"
+                                Color="Color.Primary"
+                                Size="Size.Large"
+                                FullWidth="true"
+                                StartIcon="Icons.Material.Filled.Login">
+                                <MudText>Iniciar Sesión</MudText>
+                            </MudButton>
+                        </MudStack>
+                    </form>
+                </MudStack>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </MudContainer>
+</div>
+
+
+@code {
+    private LoginModel loginModel = new();
+    private bool _showPassword = false;
+    private bool showError = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        
+        // Check for error parameter
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        showError = query["error"] == "true";
+        
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+    }
+}

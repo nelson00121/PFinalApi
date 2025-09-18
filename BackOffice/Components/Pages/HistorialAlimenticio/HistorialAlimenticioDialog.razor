@@ -1,0 +1,262 @@
+@using Database.Models
+@using Database.DTOS
+@using BackOffice.Services
+@using MudBlazor
+@inject IHistorialAlimenticioService HistorialAlimenticioService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 700px;">
+            <MudForm @ref="form" @bind-IsValid="@isFormValid">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="model.AnimalId"
+                                  Label="Animal"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="Debe seleccionar un animal">
+                            @foreach (var animal in animales)
+                            {
+                                <MudSelectItem Value="@animal.Id">
+                                    @animal.CodigoRfid (@animal.Raza?.Nombre - @animal.EstadoAnimal?.Nombre)
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudSelect Value="model.AlimentoId"
+                                  Label="Alimento"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="Debe seleccionar un alimento"
+                                  ValueChanged="OnAlimentoChanged"
+                                  T="int">
+                            @foreach (var alimento in alimentos)
+                            {
+                                <MudSelectItem Value="@alimento.Id">
+                                    @alimento.Nombre (Stock: @alimento.Stock.ToString("F2") @alimento.UnidadesDeMedidaAlimentos?.Nombre)
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="model.EmpleadoId"
+                                  Label="Empleado"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="Debe seleccionar un empleado">
+                            @foreach (var empleado in empleados)
+                            {
+                                <MudSelectItem Value="@empleado.Id">
+                                    @empleado.PrimerNombre @empleado.PrimerApellido
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="model.Cantidad"
+                                        Label="Cantidad"
+                                        Variant="Variant.Outlined"
+                                        Required="true"
+                                        RequiredError="La cantidad es obligatoria"
+                                        Min="0.01M"
+                                        Max="@(selectedAlimento?.Stock ?? 999999.99M)"
+                                        Step="0.01M"
+                                        Format="F2"
+                                        HelperText="@(selectedAlimento != null ? $"Stock disponible: {selectedAlimento.Stock:F2} {selectedAlimento.UnidadesDeMedidaAlimentos?.Nombre}" : "")"
+                                        For="@(() => model.Cantidad)" />
+                    </MudItem>
+
+                    @if (selectedAlimento != null && model.Cantidad > 0)
+                    {
+                        <MudItem xs="12">
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                                <strong>Información del consumo:</strong><br />
+                                <strong>Alimento:</strong> @selectedAlimento.Nombre<br />
+                                <strong>Stock actual:</strong> @selectedAlimento.Stock.ToString("F2") @selectedAlimento.UnidadesDeMedidaAlimentos?.Nombre<br />
+                                <strong>Cantidad a consumir:</strong> @model.Cantidad.ToString("F2") @selectedAlimento.UnidadesDeMedidaAlimentos?.Nombre<br />
+                                <strong>Stock después del consumo:</strong> @((selectedAlimento.Stock - model.Cantidad).ToString("F2")) @selectedAlimento.UnidadesDeMedidaAlimentos?.Nombre
+                                @if (selectedAlimento.Stock - model.Cantidad < 0)
+                                {
+                                    <br /><strong style="color: red;">⚠️ Stock insuficiente</strong>
+                                }
+                            </MudAlert>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudForm>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" StartIcon="Icons.Material.Filled.Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled"
+                   OnClick="Submit"
+                   StartIcon="@(IsEditMode ? Icons.Material.Filled.Update : Icons.Material.Filled.Save)"
+                   Disabled="@(!isFormValid || isSubmitting || (selectedAlimento != null && model.Cantidad > selectedAlimento.Stock))">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                <MudText Class="ms-2">Procesando...</MudText>
+            }
+            else
+            {
+                @(IsEditMode ? "Actualizar" : "Registrar Consumo")
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter] 
+    public bool IsEditMode { get; set; } = false;
+
+    [Parameter] 
+    public HistorialAlimenticio? HistorialAlimenticio { get; set; }
+
+    private MudForm form = default!;
+    private bool isFormValid;
+    private bool isSubmitting;
+    private List<Animale> animales = new();
+    private List<Alimento> alimentos = new();
+    private List<Empleado> empleados = new();
+    private Alimento? selectedAlimento;
+
+    private HistorialAlimenticioModel model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDropdownData();
+        
+        if (IsEditMode && HistorialAlimenticio != null)
+        {
+            model = new HistorialAlimenticioModel
+            {
+                AnimalId = HistorialAlimenticio.AnimalId,
+                AlimentoId = HistorialAlimenticio.AlimentoId,
+                EmpleadoId = HistorialAlimenticio.EmpleadoId,
+                Cantidad = HistorialAlimenticio.Cantidad
+            };
+            await UpdateSelectedAlimento();
+        }
+    }
+
+    private async Task LoadDropdownData()
+    {
+        try
+        {
+            animales = await HistorialAlimenticioService.GetAnimalesAsync();
+            alimentos = await HistorialAlimenticioService.GetAlimentosAsync();
+            empleados = await HistorialAlimenticioService.GetEmpleadosAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar datos: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task UpdateSelectedAlimento()
+    {
+        if (model.AlimentoId > 0)
+        {
+            selectedAlimento = alimentos.FirstOrDefault(a => a.Id == model.AlimentoId);
+            StateHasChanged();
+        }
+        else
+        {
+            selectedAlimento = null;
+        }
+        await Task.CompletedTask;
+    }
+
+    private async Task OnAlimentoChanged(int alimentoId)
+    {
+        model.AlimentoId = alimentoId;
+        await UpdateSelectedAlimento();
+    }
+
+    void Cancel()
+    {   
+        MudDialog?.Close();
+    }
+
+    private async Task Submit()
+    {
+        if (!isFormValid) return;
+
+        if (selectedAlimento != null && model.Cantidad > selectedAlimento.Stock)
+        {
+            Snackbar.Add("La cantidad solicitada excede el stock disponible", Severity.Warning);
+            return;
+        }
+
+        isSubmitting = true;
+        try
+        {
+            var historialDto = new HistorialAlimenticioCreateDto
+            {
+                AnimalId = model.AnimalId,
+                AlimentoId = model.AlimentoId,
+                EmpleadoId = model.EmpleadoId,
+                Cantidad = model.Cantidad
+            };
+
+            if (IsEditMode && HistorialAlimenticio != null)
+            {
+                historialDto.Id = HistorialAlimenticio.Id;
+                var result = await HistorialAlimenticioService.UpdateAsync(HistorialAlimenticio.Id, historialDto);
+                if (result != null)
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Historial alimenticio actualizado exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Error al actualizar el historial alimenticio", Severity.Error);
+                }
+            }
+            else
+            {
+                var result = await HistorialAlimenticioService.CreateAsync(historialDto);
+                if (result != null)
+                {
+                    Snackbar.Add("Historial alimenticio registrado exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Add("Error al registrar el historial alimenticio", Severity.Error);
+                }
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar la solicitud: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private class HistorialAlimenticioModel
+    {
+        public int AnimalId { get; set; }
+        public int AlimentoId { get; set; }
+        public int EmpleadoId { get; set; }
+        public decimal Cantidad { get; set; }
+    }
+}

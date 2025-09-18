@@ -1,0 +1,240 @@
+@page "/usuarios"
+@using Database.Models
+@using Database.DTOS
+@using BackOffice.Services
+@inject IUserService UserService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Gestión de Usuarios</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Gestión de Usuarios</MudText>
+    
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <MudText Typo="Typo.h6">Lista de Usuarios</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="Icons.Material.Filled.Add"
+                              OnClick="OpenCreateDialog">
+                        Nuevo Usuario
+                    </MudButton>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        
+        <MudCardContent>
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else
+            {
+                <MudTable Items="usuarios" 
+                         Hover="true" 
+                         Dense="true"
+                         Striped="true"
+                         Loading="isLoading">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Email</MudTh>
+                        <MudTh>Empleado</MudTh>
+                        <MudTh>Tipo</MudTh>
+                        <MudTh>Fecha Registro</MudTh>
+                        <MudTh>Estado</MudTh>
+                        <MudTh Style="text-align: center;">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.Id</MudTd>
+                        <MudTd DataLabel="Email">@context.Email</MudTd>
+                        <MudTd DataLabel="Empleado">@context.Empleado?.PrimerNombre @context.Empleado?.PrimerApellido</MudTd>
+                        <MudTd DataLabel="Tipo">
+                            <MudChip T="string" Size="Size.Small" Color="@(context.IsAdmin ? Color.Warning : Color.Info)">
+                                @(context.IsAdmin ? "Admin" : "Usuario")
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Fecha">@context.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        <MudTd DataLabel="Estado">
+                            <MudChip T="string" Size="Size.Small" Color="@(context.Activo ? Color.Success : Color.Error)">
+                                @(context.Activo ? "Activo" : "Inactivo")
+                            </MudChip>
+                        </MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                <MudTooltip Text="Editar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Edit" 
+                                                 Color="Color.Warning"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => OpenEditDialog(context)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Cambiar contraseña">
+                                    <MudIconButton Icon="Icons.Material.Filled.Lock" 
+                                                 Color="Color.Secondary"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => OpenChangePasswordDialog(context)" />
+                                </MudTooltip>
+                                <MudTooltip Text="@(context.Activo ? "Desactivar" : "Activar")">
+                                    <MudIconButton Icon="@(context.Activo ? Icons.Material.Filled.PersonOff : Icons.Material.Filled.Person)" 
+                                                 Color="@(context.Activo ? Color.Error : Color.Success)"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => ToggleUsuarioStatus(context)" />
+                                </MudTooltip>
+                            </MudButtonGroup>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Mostrando @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalItems)) de @totalItems registros
+                    </MudText>
+                    
+                    <MudPagination Count="@totalPages" 
+                                  Selected="@currentPage" 
+                                  SelectedChanged="OnPageChanged"
+                                  ShowFirstButton="true"
+                                  ShowLastButton="true"
+                                  ShowPreviousButton="true"
+                                  ShowNextButton="true"
+                                  Rectangular="true"
+                                  Size="Size.Small" />
+                </div>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<Usuario> usuarios = new();
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalItems = 0;
+    private int totalPages = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsuarios();
+    }
+
+    private async Task LoadUsuarios()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await UserService.GetUsuariosPaginadosAsync(currentPage, pageSize);
+            usuarios = result.usuarios;
+            totalItems = result.totalCount;
+            totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar usuarios: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        currentPage = page;
+        await LoadUsuarios();
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<UsuarioDialog>("Crear Usuario", 
+            new DialogParameters<UsuarioDialog> 
+            { 
+                { x => x.IsEditMode, false } 
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadUsuarios();
+            Snackbar.Add("Usuario creado exitosamente", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(Usuario usuario)
+    {
+        var dialog = await DialogService.ShowAsync<UsuarioDialog>("Editar Usuario", 
+            new DialogParameters<UsuarioDialog> 
+            { 
+                { x => x.IsEditMode, true },
+                { x => x.Usuario, usuario }
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadUsuarios();
+        }
+    }
+
+    private async Task OpenChangePasswordDialog(Usuario usuario)
+    {
+        var dialog = await DialogService.ShowAsync<ChangePasswordDialog>("Cambiar Contraseña", 
+            new DialogParameters<ChangePasswordDialog> 
+            { 
+                { x => x.UsuarioId, usuario.Id },
+                { x => x.UsuarioEmail, usuario.Email }
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            Snackbar.Add("Contraseña actualizada exitosamente", Severity.Success);
+        }
+    }
+
+    private async Task ToggleUsuarioStatus(Usuario usuario)
+    {
+        var action = usuario.Activo ? "desactivar" : "activar";
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirmar cambio de estado",
+            $"¿Está seguro de que desea {action} el usuario {usuario.Email}?",
+            yesText: char.ToUpper(action[0]) + action.Substring(1), 
+            cancelText: "Cancelar");
+
+        if (confirmed == true)
+        {
+            try
+            {
+                var updatedUsuario = new UsuarioUpdateDto
+                {
+                    Email = usuario.Email,
+                    IsAdmin = usuario.IsAdmin,
+                    Activo = !usuario.Activo,
+                    EmpleadoId = usuario.EmpleadoId
+                };
+
+                var result = await UserService.UpdateUsuarioAsync(usuario.Id, updatedUsuario);
+                if (result != null)
+                {
+                    await LoadUsuarios();
+                    Snackbar.Add($"Usuario {action} exitosamente", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add($"Error al {action} el usuario", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al {action} usuario: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

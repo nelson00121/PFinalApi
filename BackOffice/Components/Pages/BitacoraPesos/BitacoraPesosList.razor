@@ -1,0 +1,188 @@
+@page "/bitacora-pesos"
+@using Database.Models
+@using BackOffice.Services
+@inject IAnimalService AnimalService
+@inject IDialogService DialogService
+@inject IBitacoraPesoService BitacoraPesoService  // ← Añade esta línea
+
+@inject ISnackbar Snackbar
+
+<PageTitle>Bitácora de Pesos</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Bitácora de Pesos</MudText>
+    
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <MudText Typo="Typo.h6">Registros de Peso</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="Icons.Material.Filled.Add"
+                              OnClick="OpenCreateDialog">
+                        Nuevo Registro
+                    </MudButton>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        
+        <MudCardContent>
+            <MudGrid Class="mb-3">
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField @bind-Value="searchTerm"
+                                 Label="Buscar por Código RFID o Raza"
+                                 Placeholder="Ingrese término de búsqueda..."
+                                 Variant="Variant.Outlined"
+                                 Adornment="Adornment.End"
+                                 AdornmentIcon="@Icons.Material.Filled.Search"
+                                 OnKeyUp="@(async (e) => { if (e.Key == "Enter") await SearchBitacoraPesos(); })"
+                                 Clearable="true"
+                                 OnClearButtonClick="@(async () => { searchTerm = string.Empty; await SearchBitacoraPesos(); })" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="2">
+                    <MudButton Variant="Variant.Filled"
+                              Color="Color.Primary"
+                              StartIcon="@Icons.Material.Filled.Search"
+                              OnClick="SearchBitacoraPesos"
+                              FullWidth="true"
+                              Class="mud-height-full">
+                        Buscar
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+            
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else
+            {
+                <MudTable Items="filteredBitacoraPesos" 
+                         Hover="true" 
+                         Dense="true"
+                         Striped="true"
+                         Loading="isLoading">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Animal (RFID)</MudTh>
+                        <MudTh>Raza</MudTh>
+                        <MudTh>Peso (lbs)</MudTh>
+                        <MudTh>Alto (cm)</MudTh>
+                        <MudTh>Largo (cm)</MudTh>
+                        <MudTh>Diámetro (cm)</MudTh>
+                        <MudTh>Fecha Registro</MudTh>
+                        <MudTh Style="text-align: center;">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.Id</MudTd>
+                        <MudTd DataLabel="Animal">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info">@context.Animal?.CodigoRfid</MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Raza">@context.Animal?.Raza?.Nombre</MudTd>
+                        <MudTd DataLabel="Peso">@context.Peso.ToString("F2")</MudTd>
+                        <MudTd DataLabel="Alto">@context.Alto.ToString("F2")</MudTd>
+                        <MudTd DataLabel="Largo">@context.Largo.ToString("F2")</MudTd>
+                        <MudTd DataLabel="Diámetro">@context.Diametro.ToString("F2")</MudTd>
+                        <MudTd DataLabel="Fecha">@context.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                <MudTooltip Text="Ver detalles">
+                                    <MudIconButton Icon="Icons.Material.Filled.Visibility" 
+                                                 Color="Color.Info"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => ViewDetails(context)" />
+                                </MudTooltip>
+                            </MudButtonGroup>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+                
+                @if (!filteredBitacoraPesos.Any() && !string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    <MudAlert Severity="Severity.Info" Class="mt-4">
+                        No se encontraron registros que coincidan con "@searchTerm".
+                    </MudAlert>
+                }
+                else if (!filteredBitacoraPesos.Any())
+                {
+                    <MudAlert Severity="Severity.Info" Class="mt-4">
+                        No hay registros de peso disponibles.
+                    </MudAlert>
+                }
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<BitacoraPeso> bitacoraPesos = new();
+    private List<BitacoraPeso> filteredBitacoraPesos = new();
+    private bool isLoading = true;
+    private string searchTerm = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBitacoraPesos();
+    }
+
+    private async Task LoadBitacoraPesos()
+    {
+        isLoading = true;
+        try
+        {
+            bitacoraPesos = await BitacoraPesoService.GetAllAsync();
+            filteredBitacoraPesos = bitacoraPesos;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar registros: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<BitacoraPesoDialog>("Nuevo Registro de Peso");
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadBitacoraPesos();
+            Snackbar.Add("Registro de peso creado exitosamente", Severity.Success);
+        }
+    }
+
+    private async Task ViewDetails(BitacoraPeso bitacoraPeso)
+    {
+        var dialog = await DialogService.ShowAsync<BitacoraPesoDetailsDialog>("Detalles del Registro",
+            new DialogParameters<BitacoraPesoDetailsDialog>
+            {
+                { x => x.BitacoraPeso, bitacoraPeso }
+            });
+
+        await dialog.Result;
+    }
+    
+    private async Task SearchBitacoraPesos()
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            filteredBitacoraPesos = bitacoraPesos;
+        }
+        else
+        {
+            filteredBitacoraPesos = bitacoraPesos.Where(bp => 
+                (bp.Animal?.CodigoRfid?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (bp.Animal?.Raza?.Nombre?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+            ).ToList();
+        }
+        await Task.CompletedTask;
+    }
+}

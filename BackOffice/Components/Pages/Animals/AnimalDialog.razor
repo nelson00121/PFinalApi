@@ -1,0 +1,235 @@
+@using Database.Models
+@using BackOffice.Services
+@using MudBlazor
+@inject IAnimalService AnimalService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 600px;">
+            <MudForm @ref="form" @bind-IsValid="@isFormValid">
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="model.CodigoRfid"
+                                     Label="Código RFID"
+                                     Variant="Variant.Outlined"
+                                     Required="true"
+                                     RequiredError="El código RFID es obligatorio"
+                                     Validation="@(new Func<string, Task<IEnumerable<string>>>(ValidateCodigoRfid))"
+                                     For="@(() => model.CodigoRfid)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="model.RazaId"
+                                  Label="Raza"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="Debe seleccionar una raza">
+                            @foreach (var raza in razas)
+                            {
+                                <MudSelectItem Value="@raza.Id">@raza.Nombre</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudSelect @bind-Value="model.EstadoAnimalId"
+                                  Label="Estado"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="Debe seleccionar un estado">
+                            @foreach (var estado in estados)
+                            {
+                                <MudSelectItem Value="@estado.Id">@estado.Nombre</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudNumericField @bind-Value="model.PesoActualLibras"
+                                        Label="Peso Actual (libras)"
+                                        Variant="Variant.Outlined"
+                                        Required="true"
+                                        RequiredError="El peso es obligatorio"
+                                        Min="0"
+                                        Step="0.01M"
+                                        Format="F2"
+                                        For="@(() => model.PesoActualLibras)" />
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" 
+                   StartIcon="Icons.Material.Filled.Cancel">
+            Cancelar
+        </MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled"
+                   OnClick="Submit"
+                   Disabled="@(!isFormValid || isSubmitting)"
+                   StartIcon="@(IsEditMode ? Icons.Material.Filled.Update : Icons.Material.Filled.Save)">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                <MudText Class="ms-2">Procesando...</MudText>
+            }
+            else
+            {
+                @(IsEditMode ? "Actualizar" : "Crear")
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    IMudDialogInstance  MudDialog {get;set;}
+
+    [Parameter] 
+    public bool IsEditMode { get; set; } = false;
+
+    [Parameter] 
+    public Animale? Animal { get; set; }
+
+    private MudForm form = default!;
+    private bool isFormValid;
+    private bool isSubmitting;
+    private List<Raza> razas = new();
+    private List<EstadosAnimale> estados = new();
+
+    private AnimalModel model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDropdownData();
+        
+        if (IsEditMode && Animal != null)
+        {
+            model = new AnimalModel
+            {
+                CodigoRfid = Animal.CodigoRfid,
+                PesoActualLibras = Animal.PesoActualLibras,
+                EstadoAnimalId = Animal.EstadoAnimalId,
+                RazaId = Animal.RazaId
+            };
+        }
+    }
+
+    private async Task LoadDropdownData()
+    {
+        try
+        {
+            razas = await AnimalService.GetRazasAsync();
+            estados = await AnimalService.GetEstadosAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar datos: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task<IEnumerable<string>> ValidateCodigoRfid(string codigoRfid)
+    {
+        var errors = new List<string>();
+        
+        if (string.IsNullOrWhiteSpace(codigoRfid))
+        {
+            errors.Add("El código RFID es obligatorio");
+            return errors;
+        }
+
+        try
+        {
+            var excludeId = IsEditMode && Animal != null ? Animal.Id : (int?)null;
+            var exists = await AnimalService.CodigoRfidExistsAsync(codigoRfid, excludeId);
+            if (exists)
+            {
+                errors.Add("Este código RFID ya está en uso");
+            }
+        }
+        catch (Exception)
+        {
+            errors.Add("Error al validar el código RFID");
+        }
+
+        return errors;
+    }
+
+    void Cancel()
+    {   
+      
+        MudDialog?.Close();
+    }
+
+    private async Task Submit()
+    {
+        if (!isFormValid) return;
+
+        isSubmitting = true;
+        try
+        {
+            if (IsEditMode && Animal != null)
+            {
+                var animalToUpdate = new Animale
+                {
+                    CodigoRfid = model.CodigoRfid,
+                    PesoActualLibras = model.PesoActualLibras,
+                    EstadoAnimalId = model.EstadoAnimalId,
+                    RazaId = model.RazaId
+                };
+
+                var result = await AnimalService.UpdateAnimalAsync(Animal.Id, animalToUpdate);
+                if (result != null)
+                {
+                        Snackbar.Clear();
+                    Snackbar.Add("Animal actualizado exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                        Snackbar.Clear();
+                    Snackbar.Add("Error al actualizar el animal", Severity.Error);
+                }
+            }
+            else
+            {
+                var newAnimal = new Animale
+                {
+                    CodigoRfid = model.CodigoRfid,
+                    PesoActualLibras = model.PesoActualLibras,
+                    EstadoAnimalId = model.EstadoAnimalId,
+                    RazaId = model.RazaId
+                };
+
+                var result = await AnimalService.CreateAnimalAsync(newAnimal);
+                if (result != null)
+                {
+                    Snackbar.Add("Animal creado exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Add("Error al crear el animal", Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar la solicitud: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private class AnimalModel
+    {
+        public string CodigoRfid { get; set; } = string.Empty;
+        public decimal PesoActualLibras { get; set; }
+        public int EstadoAnimalId { get; set; }
+        public int RazaId { get; set; }
+    }
+}

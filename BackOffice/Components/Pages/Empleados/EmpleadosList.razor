@@ -1,0 +1,215 @@
+@page "/empleados"
+@using Database.Models
+@using BackOffice.Services
+@inject IEmpleadoService EmpleadoService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Gestión de Empleados</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Gestión de Empleados</MudText>
+    
+    <MudCard>
+        <MudCardHeader>
+            <CardHeaderContent>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <MudText Typo="Typo.h6">Lista de Empleados</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                              Color="Color.Primary" 
+                              StartIcon="Icons.Material.Filled.Add"
+                              OnClick="OpenCreateDialog">
+                        Nuevo Empleado
+                    </MudButton>
+                </div>
+            </CardHeaderContent>
+        </MudCardHeader>
+        
+        <MudCardContent>
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else
+            {
+                <MudTable Items="empleados" 
+                         Hover="true" 
+                         Dense="true"
+                         Striped="true"
+                         Loading="isLoading">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>Primer Nombre</MudTh>
+                        <MudTh>Segundo Nombre</MudTh>
+                        <MudTh>Primer Apellido</MudTh>
+                        <MudTh>Segundo Apellido</MudTh>
+                        <MudTh>Fecha Registro</MudTh>
+                        <MudTh>Estado</MudTh>
+                        <MudTh Style="text-align: center;">Acciones</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.Id</MudTd>
+                        <MudTd DataLabel="Primer Nombre">@context.PrimerNombre</MudTd>
+                        <MudTd DataLabel="Segundo Nombre">@(context.SegundoNombre ?? "-")</MudTd>
+                        <MudTd DataLabel="Primer Apellido">@context.PrimerApellido</MudTd>
+                        <MudTd DataLabel="Segundo Apellido">@(context.SegundoApellido ?? "-")</MudTd>
+                        <MudTd DataLabel="Fecha">@context.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                        <MudTd DataLabel="Estado">
+                            <MudChip T="string" Size="Size.Small" Color="@(context.Activo ? Color.Success : Color.Error)">
+                                @(context.Activo ? "Activo" : "Inactivo")
+                            </MudChip>
+                        </MudTd>
+                        <MudTd Style="text-align: center;">
+                            <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                                <MudTooltip Text="Editar">
+                                    <MudIconButton Icon="Icons.Material.Filled.Edit" 
+                                                 Color="Color.Warning"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => OpenEditDialog(context)" />
+                                </MudTooltip>
+                                <MudTooltip Text="@(context.Activo ? "Desactivar" : "Activar")">
+                                    <MudIconButton Icon="@(context.Activo ? Icons.Material.Filled.PersonOff : Icons.Material.Filled.Person)" 
+                                                 Color="@(context.Activo ? Color.Error : Color.Success)"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Filled"
+                                                 OnClick="() => ToggleEmpleadoStatus(context)" />
+                                </MudTooltip>
+                            </MudButtonGroup>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Mostrando @((currentPage - 1) * pageSize + 1) a @(Math.Min(currentPage * pageSize, totalItems)) de @totalItems registros
+                    </MudText>
+                    
+                    <MudPagination Count="@totalPages" 
+                                  Selected="@currentPage" 
+                                  SelectedChanged="OnPageChanged"
+                                  ShowFirstButton="true"
+                                  ShowLastButton="true"
+                                  ShowPreviousButton="true"
+                                  ShowNextButton="true"
+                                  Rectangular="true"
+                                  Size="Size.Small" />
+                </div>
+            }
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private List<Empleado> empleados = new();
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalItems = 0;
+    private int totalPages = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmpleados();
+    }
+
+    private async Task LoadEmpleados()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await EmpleadoService.GetEmpleadosPaginadosAsync(currentPage, pageSize);
+            empleados = result.empleados;
+            totalItems = result.totalCount;
+            totalPages = (int)Math.Ceiling((double)totalItems / pageSize);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar empleados: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        currentPage = page;
+        await LoadEmpleados();
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<EmpleadoDialog>("Crear Empleado", 
+            new DialogParameters<EmpleadoDialog> 
+            { 
+                { x => x.IsEditMode, false } 
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadEmpleados();
+            Snackbar.Add("Empleado creado exitosamente", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(Empleado empleado)
+    {
+        var dialog = await DialogService.ShowAsync<EmpleadoDialog>("Editar Empleado", 
+            new DialogParameters<EmpleadoDialog> 
+            { 
+                { x => x.IsEditMode, true },
+                { x => x.Empleado, empleado }
+            });
+
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadEmpleados();
+        }
+    }
+
+    private async Task ToggleEmpleadoStatus(Empleado empleado)
+    {
+        var action = empleado.Activo ? "desactivar" : "activar";
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirmar cambio de estado",
+            $"¿Está seguro de que desea {action} a {empleado.PrimerNombre} {empleado.PrimerApellido}?",
+            yesText: char.ToUpper(action[0]) + action.Substring(1), 
+            cancelText: "Cancelar");
+
+        if (confirmed == true)
+        {
+            try
+            {
+                var updatedEmpleado = new Empleado
+                {
+                    PrimerNombre = empleado.PrimerNombre,
+                    SegundoNombre = empleado.SegundoNombre,
+                    PrimerApellido = empleado.PrimerApellido,
+                    SegundoApellido = empleado.SegundoApellido,
+                    Activo = !empleado.Activo
+                };
+
+                var result = await EmpleadoService.UpdateEmpleadoAsync(empleado.Id, updatedEmpleado);
+                if (result != null)
+                {
+                    await LoadEmpleados();
+                    Snackbar.Add($"Empleado {action} exitosamente", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add($"Error al {action} el empleado", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al {action} empleado: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

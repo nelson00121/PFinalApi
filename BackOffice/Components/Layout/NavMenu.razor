@@ -1,0 +1,48 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@inject HttpClient HttpClient
+@inject NavigationManager Navigation
+
+<AuthorizeView>
+    <Authorized>
+
+<MudNavMenu>
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
+    <MudNavLink Href="animales" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Pets">Animales</MudNavLink>
+    <MudNavLink Href="razas" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Diversity3">Razas</MudNavLink>
+    <MudNavLink Href="estados-animales" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Category">Estados Animales</MudNavLink>
+    <MudNavLink Href="empleados" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.People">Empleados</MudNavLink>
+    <MudNavLink Href="usuarios" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.PersonPin">Usuarios</MudNavLink>
+    <MudNavLink Href="alimentos" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Fastfood">Alimentos</MudNavLink>
+    <MudNavLink Href="compra-alimentos" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ShoppingCart">Compra de Alimentos</MudNavLink>
+    <MudNavLink Href="historial-alimenticio" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Restaurant">Historial Alimenticio</MudNavLink>
+    <MudNavLink Href="tipos-alimentos" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Restaurant">Tipos de Alimentos</MudNavLink>
+    <MudNavLink Href="unidades-medida-alimento" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Scale">Unidades de Medida</MudNavLink>
+    <MudNavLink Href="vacunas" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Vaccines">Vacunas</MudNavLink>
+    <MudNavLink Href="bitacora-vacunas" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.MedicalServices">Bitácora Vacunas</MudNavLink>
+    <MudNavLink Href="bitacora-pesos" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Scale">Bitácora de Pesos</MudNavLink>
+    <MudNavLink Href="reportes" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Description">Reportes</MudNavLink>
+
+
+    <MudNavGroup Text="Mi Usuario" Icon="@Icons.Material.Filled.Person" Expanded="false"></MudNavGroup>
+                <MudNavLink Icon="@Icons.Material.Filled.AccountCircle">
+                    @($"{context.User.Identity?.Name}")
+                </MudNavLink>
+                <MudNavGroup>
+                <div class="nav-item px-3">
+                    <form method="post" action="/api/auth/logout">
+                        <button type="submit" class="nav-link btn btn-link text-start">
+                            <MudIcon Icon="@Icons.Material.Filled.Logout" /> Logout
+                        </button>
+                    </form>
+                </div>
+            </MudNavGroup>
+</MudNavMenu>
+
+</Authorized>
+    <NotAuthorized>
+        <MudNavMenu>
+            <MudNavLink Href="/login" Icon="@Icons.Material.Filled.Login">Iniciar Sesión</MudNavLink>
+        </MudNavMenu>
+    </NotAuthorized>
+</AuthorizeView>
+

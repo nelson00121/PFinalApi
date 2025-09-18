@@ -1,0 +1,210 @@
+@using Database.Models
+@using Database.DTOS
+@using BackOffice.Services
+@using MudBlazor
+@inject ICompraAlimentoService CompraAlimentoService
+@inject IAlimentoService AlimentoService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 600px;">
+            <MudForm @ref="form" @bind-IsValid="@isFormValid">
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudSelect Value="model.AlimentoId" 
+                                  Label="Seleccionar Alimento"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="Debe seleccionar un alimento"
+                                  T="int?"
+                                  ValueChanged="OnAlimentoChanged">
+                            @foreach (var alimento in alimentos)
+                            {
+                                <MudSelectItem Value="@((int?)alimento.Id)">
+                                    @alimento.Nombre - @alimento.TipoAlimento?.NombreTipo
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudNumericField @bind-Value="model.CantidadComprada"
+                                        Label="Cantidad Comprada"
+                                        Variant="Variant.Outlined"
+                                        Required="true"
+                                        RequiredError="La cantidad comprada es obligatoria"
+                                        Min="0.01M"
+                                        Max="999999.99M"
+                                        Step="0.01M"
+                                        Format="F2"
+                                        For="@(() => model.CantidadComprada)" />
+                    </MudItem>
+
+                    @if (selectedAlimento != null)
+                    {
+                        <MudItem xs="12">
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                                <strong>Stock actual:</strong> @selectedAlimento.Stock.ToString("F2") @selectedAlimento.UnidadesDeMedidaAlimentos?.Nombre
+                                @if (model.CantidadComprada.HasValue)
+                                {
+                                    <br />
+                                    <strong>Stock después de la compra:</strong> @((selectedAlimento.Stock + model.CantidadComprada.Value).ToString("F2")) @selectedAlimento.UnidadesDeMedidaAlimentos?.Nombre
+                                }
+                            </MudAlert>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudForm>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" StartIcon="Icons.Material.Filled.Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled"
+                   OnClick="Submit"
+                   StartIcon="@(IsEditMode ? Icons.Material.Filled.Update : Icons.Material.Filled.Save)"
+                   Disabled="@(!isFormValid || isSubmitting)">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                <MudText Class="ms-2">Procesando...</MudText>
+            }
+            else
+            {
+                @(IsEditMode ? "Actualizar" : "Registrar Compra")
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter] 
+    public bool IsEditMode { get; set; } = false;
+
+    [Parameter] 
+    public CompraAlimento? CompraAlimento { get; set; }
+
+    private MudForm form = default!;
+    private bool isFormValid;
+    private bool isSubmitting;
+    private List<Alimento> alimentos = new();
+    private Alimento? selectedAlimento;
+
+    private CompraAlimentoModel model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAlimentos();
+        
+        if (IsEditMode && CompraAlimento != null)
+        {
+            model = new CompraAlimentoModel
+            {
+                AlimentoId = CompraAlimento.AlimentoId,
+                CantidadComprada = CompraAlimento.CantidadComprada
+            };
+            await UpdateSelectedAlimento();
+        }
+    }
+
+    private async Task LoadAlimentos()
+    {
+        try
+        {
+            var (alimentosList, _) = await AlimentoService.GetAlimentosPaginadosAsync(1, 1000);
+            alimentos = alimentosList;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar alimentos: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task UpdateSelectedAlimento()
+    {
+        if (model.AlimentoId.HasValue)
+        {
+            selectedAlimento = alimentos.FirstOrDefault(a => a.Id == model.AlimentoId.Value);
+            StateHasChanged();
+        }
+        else
+        {
+            selectedAlimento = null;
+        }
+        await Task.CompletedTask;
+    }
+
+    private async Task OnAlimentoChanged(int? alimentoId)
+    {
+        model.AlimentoId = alimentoId;
+        await UpdateSelectedAlimento();
+    }
+
+    void Cancel()
+    {   
+        MudDialog?.Close();
+    }
+
+    private async Task Submit()
+    {
+        if (!isFormValid) return;
+
+        isSubmitting = true;
+        try
+        {
+            var compraDto = new CompraAlimentoCreateDto
+            {
+                AlimentoId = model.AlimentoId,
+                CantidadComprada = model.CantidadComprada
+            };
+
+            if (IsEditMode && CompraAlimento != null)
+            {
+                compraDto.Id = CompraAlimento.Id;
+                var result = await CompraAlimentoService.UpdateAsync(CompraAlimento.Id, compraDto);
+                if (result != null)
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Compra actualizada exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Error al actualizar la compra", Severity.Error);
+                }
+            }
+            else
+            {
+                var result = await CompraAlimentoService.CreateAsync(compraDto);
+                if (result != null)
+                {
+                    Snackbar.Add("Compra registrada exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Add("Error al registrar la compra", Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar la solicitud: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private class CompraAlimentoModel
+    {
+        public int? AlimentoId { get; set; }
+        public decimal? CantidadComprada { get; set; }
+    }
+}

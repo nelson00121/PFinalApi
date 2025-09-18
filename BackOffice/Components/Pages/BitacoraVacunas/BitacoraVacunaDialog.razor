@@ -1,0 +1,230 @@
+@using Database.Models
+@using Database.DTOS
+@using BackOffice.Services
+@using MudBlazor
+@inject IBitacoraVacunaService BitacoraVacunaService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 600px;">
+            <MudForm @ref="form" @bind-IsValid="@isFormValid">
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudSelect @bind-Value="model.AnimalId"
+                                  Label="Animal"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="Debe seleccionar un animal"
+                                  ToStringFunc="@(animal => GetAnimalDisplayText(animal))">
+                            @foreach (var animal in animales)
+                            {
+                                <MudSelectItem Value="@animal.Id">
+                                    @($"{animal.CodigoRfid} - {animal.Raza?.Nombre}")
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudSelect @bind-Value="model.VacunaId"
+                                  Label="Vacuna"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="Debe seleccionar una vacuna"
+                                  Validation="@(new Func<int, Task<IEnumerable<string>>>(ValidateVacunaSelection))">
+                            @foreach (var vacuna in vacunas)
+                            {
+                                <MudSelectItem Value="@vacuna.Id">
+                                    @vacuna.Nombre
+                                    @if (!string.IsNullOrEmpty(vacuna.Descripcion))
+                                    {
+                                        <span class="text-secondary"> - @vacuna.Descripcion</span>
+                                    }
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    @if (!IsEditMode)
+                    {
+                        <MudItem xs="12">
+                            <MudAlert Severity="Severity.Info" Dense="true">
+                                <MudText Typo="Typo.body2">
+                                    La fecha de aplicación se registrará automáticamente al crear el registro.
+                                </MudText>
+                            </MudAlert>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudForm>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" StartIcon="Icons.Material.Filled.Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled"
+                   OnClick="Submit"
+                   StartIcon="@(IsEditMode ? Icons.Material.Filled.Update : Icons.Material.Filled.Save)"
+                   Disabled="@(!isFormValid || isSubmitting)">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                <MudText Class="ms-2">Procesando...</MudText>
+            }
+            else
+            {
+                @(IsEditMode ? "Actualizar" : "Registrar")
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter] 
+    public bool IsEditMode { get; set; } = false;
+
+    [Parameter] 
+    public BitacorasVacuna? BitacoraVacuna { get; set; }
+
+    private MudForm form = default!;
+    private bool isFormValid;
+    private bool isSubmitting;
+    private List<Animale> animales = new();
+    private List<Vacuna> vacunas = new();
+
+    private BitacoraVacunaModel model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDropdownData();
+        
+        if (IsEditMode && BitacoraVacuna != null)
+        {
+            model = new BitacoraVacunaModel
+            {
+                AnimalId = BitacoraVacuna.AnimalId,
+                VacunaId = BitacoraVacuna.VacunaId
+            };
+        }
+    }
+
+    private async Task LoadDropdownData()
+    {
+        try
+        {
+            animales = await BitacoraVacunaService.GetAnimalesAsync();
+            vacunas = await BitacoraVacunaService.GetVacunasAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar datos: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private string GetAnimalDisplayText(int animalId)
+    {
+        var animal = animales.FirstOrDefault(a => a.Id == animalId);
+        return animal != null ? $"{animal.CodigoRfid} - {animal.Raza?.Nombre}" : "";
+    }
+
+    private async Task<IEnumerable<string>> ValidateVacunaSelection(int vacunaId)
+    {
+        var errors = new List<string>();
+        
+        if (vacunaId <= 0)
+        {
+            errors.Add("Debe seleccionar una vacuna");
+            return errors;
+        }
+
+        if (model.AnimalId <= 0)
+        {
+            return errors; // No validar duplicados si no hay animal seleccionado
+        }
+
+        try
+        {
+            var excludeId = IsEditMode && BitacoraVacuna != null ? BitacoraVacuna.Id : (int?)null;
+            var yaAplicada = await BitacoraVacunaService.VacunaYaAplicadaAsync(model.AnimalId, vacunaId, excludeId);
+            if (yaAplicada)
+            {
+                var animal = animales.FirstOrDefault(a => a.Id == model.AnimalId);
+                var vacuna = vacunas.FirstOrDefault(v => v.Id == vacunaId);
+                errors.Add($"La vacuna '{vacuna?.Nombre}' ya ha sido aplicada al animal '{animal?.CodigoRfid}'");
+            }
+        }
+        catch (Exception)
+        {
+            errors.Add("Error al validar la vacuna seleccionada");
+        }
+
+        return errors;
+    }
+
+    void Cancel()
+    {   
+        MudDialog?.Close();
+    }
+
+    private async Task Submit()
+    {
+        if (!isFormValid) return;
+
+        isSubmitting = true;
+        try
+        {
+            var bitacoraDto = new BitacorasVacunaCreateDto
+            {
+                AnimalId = model.AnimalId,
+                VacunaId = model.VacunaId
+            };
+
+            if (IsEditMode && BitacoraVacuna != null)
+            {
+                var result = await BitacoraVacunaService.UpdateBitacoraVacunaAsync(BitacoraVacuna.Id, bitacoraDto);
+                if (result != null)
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Registro de vacunación actualizado exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Error al actualizar el registro", Severity.Error);
+                }
+            }
+            else
+            {
+                var result = await BitacoraVacunaService.CreateBitacoraVacunaAsync(bitacoraDto);
+                if (result != null)
+                {
+                    Snackbar.Add("Vacunación registrada exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Add("Error al registrar la vacunación", Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar la solicitud: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private class BitacoraVacunaModel
+    {
+        public int AnimalId { get; set; }
+        public int VacunaId { get; set; }
+    }
+}

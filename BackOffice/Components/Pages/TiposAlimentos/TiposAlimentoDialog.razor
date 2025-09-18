@@ -1,0 +1,172 @@
+@using Database.Models
+@using Database.DTOS
+@using BackOffice.Services
+@using MudBlazor
+@inject ITiposAlimentoService TiposAlimentoService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 600px;">
+            <MudForm @ref="form" @bind-IsValid="@isFormValid">
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="model.NombreTipo"
+                                     Label="Nombre del Tipo"
+                                     Variant="Variant.Outlined"
+                                     Required="true"
+                                     RequiredError="El nombre del tipo es obligatorio"
+                                     Validation="@(new Func<string, Task<IEnumerable<string>>>(ValidateNombre))"
+                                     For="@(() => model.NombreTipo)" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="model.Descripcion"
+                                     Label="Descripción"
+                                     Variant="Variant.Outlined"
+                                     Lines="3"
+                                     For="@(() => model.Descripcion)" />
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" StartIcon="Icons.Material.Filled.Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled"
+                   OnClick="Submit"
+                   StartIcon="@(IsEditMode ? Icons.Material.Filled.Update : Icons.Material.Filled.Save)"
+                   Disabled="@(!isFormValid || isSubmitting)">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                <MudText Class="ms-2">Procesando...</MudText>
+            }
+            else
+            {
+                @(IsEditMode ? "Actualizar" : "Crear")
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter] 
+    public bool IsEditMode { get; set; } = false;
+
+    [Parameter] 
+    public TiposAlimento? TiposAlimento { get; set; }
+
+    private MudForm form = default!;
+    private bool isFormValid;
+    private bool isSubmitting;
+
+    private TiposAlimentoCreateDto model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (IsEditMode && TiposAlimento != null)
+        {
+            model = new TiposAlimentoCreateDto
+            {
+                Id = TiposAlimento.Id,
+                NombreTipo = TiposAlimento.NombreTipo,
+                Descripcion = TiposAlimento.Descripcion
+            };
+        }
+    }
+
+    private async Task<IEnumerable<string>> ValidateNombre(string nombre)
+    {
+        var errors = new List<string>();
+        
+        if (string.IsNullOrWhiteSpace(nombre))
+        {
+            errors.Add("El nombre del tipo es obligatorio");
+            return errors;
+        }
+
+        if (nombre.Length < 2)
+        {
+            errors.Add("El nombre debe tener al menos 2 caracteres");
+            return errors;
+        }
+
+        if (nombre.Length > 50)
+        {
+            errors.Add("El nombre no puede exceder 50 caracteres");
+            return errors;
+        }
+
+        try
+        {
+            var excludeId = IsEditMode && TiposAlimento != null ? TiposAlimento.Id : (int?)null;
+            var exists = await TiposAlimentoService.NombreExistsAsync(nombre, excludeId);
+            if (exists)
+            {
+                errors.Add("Este nombre de tipo ya existe");
+            }
+        }
+        catch (Exception)
+        {
+            errors.Add("Error al validar el nombre");
+        }
+
+        return errors;
+    }
+
+    void Cancel()
+    {
+        MudDialog?.Close();
+    }
+
+    private async Task Submit()
+    {
+        if (!isFormValid) return;
+
+        isSubmitting = true;
+        try
+        {
+            if (IsEditMode && TiposAlimento != null)
+            {
+                var result = await TiposAlimentoService.UpdateTiposAlimentoAsync(TiposAlimento.Id, model);
+                if (result != null)
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Tipo de alimento actualizado exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Error al actualizar el tipo de alimento", Severity.Error);
+                }
+            }
+            else
+            {
+                var result = await TiposAlimentoService.CreateTiposAlimentoAsync(model);
+                if (result != null)
+                {
+                    Snackbar.Add("Tipo de alimento creado exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Add("Error al crear el tipo de alimento", Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar la solicitud: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

@@ -1,0 +1,191 @@
+@using Database.Models
+@using BackOffice.Services
+@using MudBlazor
+@inject IEmpleadoService EmpleadoService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 600px;">
+            <MudForm @ref="form" @bind-IsValid="@isFormValid">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="model.PrimerNombre"
+                                     Label="Primer Nombre"
+                                     Variant="Variant.Outlined"
+                                     Required="true"
+                                     RequiredError="El primer nombre es obligatorio"
+                                     For="@(() => model.PrimerNombre)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="model.SegundoNombre"
+                                     Label="Segundo Nombre"
+                                     Variant="Variant.Outlined"
+                                     For="@(() => model.SegundoNombre)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="model.PrimerApellido"
+                                     Label="Primer Apellido"
+                                     Variant="Variant.Outlined"
+                                     Required="true"
+                                     RequiredError="El primer apellido es obligatorio"
+                                     For="@(() => model.PrimerApellido)" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="model.SegundoApellido"
+                                     Label="Segundo Apellido"
+                                     Variant="Variant.Outlined"
+                                     For="@(() => model.SegundoApellido)" />
+                    </MudItem>
+
+                    @if (IsEditMode)
+                    {
+                        <MudItem xs="12">
+                            <MudSwitch @bind-Value="model.Activo" 
+                                      Label="Estado Activo" 
+                                      Color="Color.Success" />
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudForm>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" 
+                   StartIcon="Icons.Material.Filled.Cancel">
+            Cancelar
+        </MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled"
+                   OnClick="Submit"
+                   Disabled="@(!isFormValid || isSubmitting)"
+                   StartIcon="@(IsEditMode ? Icons.Material.Filled.Update : Icons.Material.Filled.Save)">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                <MudText Class="ms-2">Procesando...</MudText>
+            }
+            else
+            {
+                @(IsEditMode ? "Actualizar" : "Crear")
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter] 
+    public bool IsEditMode { get; set; } = false;
+
+    [Parameter] 
+    public Empleado? Empleado { get; set; }
+
+    private MudForm form = default!;
+    private bool isFormValid;
+    private bool isSubmitting;
+
+    private EmpleadoModel model = new();
+
+    protected override void OnInitialized()
+    {
+        if (IsEditMode && Empleado != null)
+        {
+            model = new EmpleadoModel
+            {
+                PrimerNombre = Empleado.PrimerNombre,
+                SegundoNombre = Empleado.SegundoNombre,
+                PrimerApellido = Empleado.PrimerApellido,
+                SegundoApellido = Empleado.SegundoApellido,
+                Activo = Empleado.Activo
+            };
+        }
+        else
+        {
+            model.Activo = true;
+        }
+    }
+
+    void Cancel()
+    {
+        MudDialog?.Close();
+    }
+
+    private async Task Submit()
+    {
+        if (!isFormValid) return;
+
+        isSubmitting = true;
+        try
+        {
+            if (IsEditMode && Empleado != null)
+            {
+                var empleadoToUpdate = new Empleado
+                {
+                    PrimerNombre = model.PrimerNombre,
+                    SegundoNombre = model.SegundoNombre,
+                    PrimerApellido = model.PrimerApellido,
+                    SegundoApellido = model.SegundoApellido,
+                    Activo = model.Activo
+                };
+
+                var result = await EmpleadoService.UpdateEmpleadoAsync(Empleado.Id, empleadoToUpdate);
+                if (result != null)
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Empleado actualizado exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Error al actualizar el empleado", Severity.Error);
+                }
+            }
+            else
+            {
+                var newEmpleado = new Empleado
+                {
+                    PrimerNombre = model.PrimerNombre,
+                    SegundoNombre = model.SegundoNombre,
+                    PrimerApellido = model.PrimerApellido,
+                    SegundoApellido = model.SegundoApellido,
+                    Activo = model.Activo
+                };
+
+                var result = await EmpleadoService.CreateEmpleadoAsync(newEmpleado);
+                if (result != null)
+                {
+                    Snackbar.Add("Empleado creado exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Add("Error al crear el empleado", Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar la solicitud: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private class EmpleadoModel
+    {
+        public string PrimerNombre { get; set; } = string.Empty;
+        public string? SegundoNombre { get; set; }
+        public string PrimerApellido { get; set; } = string.Empty;
+        public string? SegundoApellido { get; set; }
+        public bool Activo { get; set; } = true;
+    }
+}

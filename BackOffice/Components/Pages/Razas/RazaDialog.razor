@@ -1,0 +1,169 @@
+@using Database.Models
+@using Database.DTOS
+@using BackOffice.Services
+@using BackOffice.Mapper
+@using MudBlazor
+@inject IRazaService RazaService
+@inject ISnackbar Snackbar
+@inject Mapa Mapper
+
+<MudDialog>
+    <DialogContent>
+        <MudContainer Style="max-width: 600px;">
+            <MudForm @ref="form" @bind-IsValid="@isFormValid">
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="model.Nombre"
+                                     Label="Nombre de la Raza"
+                                     Variant="Variant.Outlined"
+                                     Required="true"
+                                     RequiredError="El nombre de la raza es obligatorio"
+                                     MaxLength="100"
+                                     Validation="@(new Func<string, Task<IEnumerable<string>>>(ValidateNombre))"
+                                     For="@(() => model.Nombre)" />
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudContainer>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" StartIcon="Icons.Material.Filled.Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled"
+                   OnClick="Submit"
+                   StartIcon="@(IsEditMode ? Icons.Material.Filled.Update : Icons.Material.Filled.Save)"
+                   Disabled="@(!isFormValid || isSubmitting)">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true"/>
+                <MudText Class="ms-2">Procesando...</MudText>
+            }
+            else
+            {
+                @(IsEditMode ? "Actualizar" : "Crear")
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter] 
+    public bool IsEditMode { get; set; } = false;
+
+    [Parameter] 
+    public Raza? Raza { get; set; }
+
+    private MudForm form = default!;
+    private bool isFormValid;
+    private bool isSubmitting;
+
+    private RazaCreateDto model = new();
+
+    protected override Task OnInitializedAsync()
+    {
+        if (IsEditMode && Raza != null)
+        {
+            model = new RazaCreateDto
+            {
+                Id = Raza.Id,
+                Nombre = Raza.Nombre
+            };
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task<IEnumerable<string>> ValidateNombre(string nombre)
+    {
+        var errors = new List<string>();
+        
+        if (string.IsNullOrWhiteSpace(nombre))
+        {
+            errors.Add("El nombre de la raza es obligatorio");
+            return errors;
+        }
+
+        if (nombre.Length < 2)
+        {
+            errors.Add("El nombre debe tener al menos 2 caracteres");
+            return errors;
+        }
+
+        if (nombre.Length > 100)
+        {
+            errors.Add("El nombre no puede exceder los 100 caracteres");
+            return errors;
+        }
+
+        try
+        {
+            var excludeId = IsEditMode && Raza != null ? Raza.Id : (int?)null;
+            var exists = await RazaService.NombreExistsAsync(nombre, excludeId);
+            if (exists)
+            {
+                errors.Add("Ya existe una raza con este nombre");
+            }
+        }
+        catch (Exception)
+        {
+            errors.Add("Error al validar el nombre");
+        }
+
+        return errors;
+    }
+
+    void Cancel()
+    {
+        MudDialog?.Close();
+    }
+
+    private async Task Submit()
+    {
+        if (!isFormValid) return;
+
+        isSubmitting = true;
+        try
+        {
+            if (IsEditMode && Raza != null)
+            {
+                var razaToUpdate = Mapper.RazaCreateDtoToRaza(model);
+                var result = await RazaService.UpdateRazaAsync(Raza.Id, razaToUpdate);
+                if (result != null)
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Raza actualizada exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Clear();
+                    Snackbar.Add("Error al actualizar la raza", Severity.Error);
+                }
+            }
+            else
+            {
+                var newRaza = Mapper.RazaCreateDtoToRaza(model);
+                var result = await RazaService.CreateRazaAsync(newRaza);
+                if (result != null)
+                {
+                    Snackbar.Add("Raza creada exitosamente", Severity.Success);
+                    MudDialog?.Close();
+                }
+                else
+                {
+                    Snackbar.Add("Error al crear la raza", Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar la solicitud: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

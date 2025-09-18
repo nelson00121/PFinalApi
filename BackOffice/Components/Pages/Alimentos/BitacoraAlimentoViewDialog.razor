@@ -1,0 +1,190 @@
+@using Database.Models
+@using BackOffice.Services
+@using MudBlazor.Charts
+@inject IHistorialAlimenticioService HistorialAlimenticioService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="Icons.Material.Filled.History" Class="mr-3" />
+            Bitácora del Alimento: @AlimentoNombre
+        </MudText>
+    </TitleContent>
+    
+    <DialogContent>
+        <MudContainer Style="max-width: 1000px; padding: 0;">
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; padding: 2rem;">
+                    <MudProgressCircular Indeterminate="true" />
+                </div>
+            }
+            else
+            {
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3">Evolución del Stock</MudText>
+                        @if (chartSeries?.Any() == true)
+                        {
+                            <MudChart ChartType="ChartType.Line" 
+                                    ChartSeries="@chartSeries" 
+                                    XAxisLabels="@xAxisLabels"
+                                    Width="100%" 
+                                    Height="300px"
+                                    ChartOptions="@chartOptions" />
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Info">No hay datos de stock disponibles para mostrar en el gráfico.</MudAlert>
+                        }
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3">Historial de Consumo</MudText>
+                        @if (historialAlimentos?.Any() == true)
+                        {
+                            <MudTable Items="historialAlimentos" 
+                                     Hover="true" 
+                                     Dense="true"
+                                     Striped="true"
+                                     Height="400px"
+                                     FixedHeader="true">
+                                <HeaderContent>
+                                    <MudTh>ID</MudTh>
+                                    <MudTh>Animal (RFID)</MudTh>
+                                    <MudTh>Cantidad</MudTh>
+                                    <MudTh>Unidad</MudTh>
+                                    <MudTh>Empleado</MudTh>
+                                    <MudTh>Fecha Registro</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd DataLabel="ID">@context.Id</MudTd>
+                                    <MudTd DataLabel="Animal">
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Primary">
+                                            @context.Animal?.CodigoRfid
+                                        </MudChip>
+                                    </MudTd>
+                                    <MudTd DataLabel="Cantidad">
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Success">
+                                            @context.Cantidad.ToString("F2")
+                                        </MudChip>
+                                    </MudTd>
+                                    <MudTd DataLabel="Unidad">@context.Alimento?.UnidadesDeMedidaAlimentos?.Nombre</MudTd>
+                                    <MudTd DataLabel="Empleado">@context.Empleado?.Id</MudTd>
+                                    <MudTd DataLabel="Fecha">@context.FechaRegistro.ToString("dd/MM/yyyy HH:mm")</MudTd>
+                                </RowTemplate>
+                            </MudTable>
+
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-3">
+                                Total de registros: @historialAlimentos.Count
+                            </MudText>
+                            
+                            @if (historialAlimentos.Any())
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                    Total consumido: @historialAlimentos.Sum(h => h.Cantidad).ToString("F2") @historialAlimentos.First().Alimento?.UnidadesDeMedidaAlimentos?.Nombre
+                                </MudText>
+                            }
+                        }
+                        else
+                        {
+                            <div style="text-align: center; padding: 2rem;">
+                                <MudIcon Icon="Icons.Material.Filled.Fastfood" Size="Size.Large" Color="Color.Secondary" />
+                                <MudText Typo="Typo.h6" Color="Color.Secondary">No hay registros de consumo</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Este alimento aún no ha sido consumido por ningún animal</MudText>
+                            </div>
+                        }
+                    </MudItem>
+                </MudGrid>
+            }
+        </MudContainer>
+    </DialogContent>
+    
+    <DialogActions>
+        <MudButton Color="Color.Primary" OnClick="Close">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public int AlimentoId { get; set; }
+    [Parameter] public string AlimentoNombre { get; set; } = string.Empty;
+
+    private List<HistorialAlimenticio> historialAlimentos = new();
+    private List<BitacoraAlimento> bitacoraAlimentos = new();
+    private bool isLoading = true;
+
+    private List<ChartSeries> chartSeries = new();
+    private string[] xAxisLabels = Array.Empty<string>();
+    private ChartOptions chartOptions = new ChartOptions();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHistorialAlimento();
+        await LoadBitacoraAlimento();
+        SetupChart();
+    }
+
+    private async Task LoadHistorialAlimento()
+    {
+        isLoading = true;
+        try
+        {
+            var todosLosHistoriales = await HistorialAlimenticioService.GetAllAsync();
+            historialAlimentos = todosLosHistoriales
+                .Where(h => h.AlimentoId == AlimentoId)
+                .OrderByDescending(h => h.FechaRegistro)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar el historial del alimento: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadBitacoraAlimento()
+    {
+        try
+        {
+            bitacoraAlimentos = await HistorialAlimenticioService.GetBitacoraAlimentoByIdAsync(AlimentoId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar la bitácora del alimento: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void SetupChart()
+    {
+        if (bitacoraAlimentos?.Any() == true)
+        {
+            var orderedData = bitacoraAlimentos.OrderBy(b => b.FechaRegistro).ToList();
+            
+            var stockData = orderedData.Select(b => (double)b.Stock).ToArray();
+            xAxisLabels = orderedData.Select(b => b.FechaRegistro.ToString("dd/MM")).ToArray();
+
+            chartSeries = new List<ChartSeries>
+            {
+                new ChartSeries 
+                { 
+                    Name = "Stock", 
+                    Data = stockData 
+                }
+            };
+
+            chartOptions = new ChartOptions
+            {
+                YAxisTicks = 10,
+                MaxNumYAxisTicks = 15,
+                YAxisFormat = "0.##"
+            };
+        }
+    }
+
+    private void Close() => MudDialog.Close();
+}
