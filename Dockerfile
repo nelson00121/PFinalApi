@@ -31,8 +31,8 @@ RUN apt-get update && apt-get install -y default-mysql-client && rm -rf /var/lib
 
 COPY --from=build /app/publish .
 
-# Railway uses PORT environment variable
-ENV ASPNETCORE_URLS=http://0.0.0.0:$PORT
+# DigitalOcean uses PORT environment variable
 ENV ASPNETCORE_ENVIRONMENT=Production
+EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "Api.dll"]

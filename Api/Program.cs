@@ -57,8 +57,18 @@ builder.Services.AddScoped<IMinioService>(provider =>
 builder.Services.AddScoped<Mapa>();
 
 builder.Services.AddScoped<IBCryptService, BCryptService>();
-var app = builder.Build();
 
+// Configure Kestrel to use PORT environment variable for production
+builder.WebHost.ConfigureKestrel(options =>
+{
+    var port = Environment.GetEnvironmentVariable("PORT");
+    if (!string.IsNullOrEmpty(port) && int.TryParse(port, out var portNumber))
+    {
+        options.ListenAnyIP(portNumber);
+    }
+});
+
+var app = builder.Build();
 
 app.MapGraphQL();
 
