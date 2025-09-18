@@ -8,6 +8,7 @@ COPY Nelson.sln ./
 # Copy project files
 COPY Api/Api.csproj Api/
 COPY Database/Database.csproj Database/
+COPY BackOffice/BackOffice.csproj BackOffice/
 COPY Bucket/Bucket.csproj Bucket/
 COPY Bycript/Bycript.csproj Bycript/
 
